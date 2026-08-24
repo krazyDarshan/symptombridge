@@ -80,17 +80,17 @@ export function useRemedySearch(segments, limit = 10) {
       return undefined;
     }
 
+    setStatus("searching");
     const timeout = window.setTimeout(() => {
       const requestId = requestRef.current + 1;
       requestRef.current = requestId;
-      setStatus("searching");
       workerRef.current?.postMessage({
         type: "search",
         requestId,
         segments: stableSegments,
         limit,
       });
-    }, 160);
+    }, 60);
 
     return () => window.clearTimeout(timeout);
   }, [metadata, stableSegments, limit]);

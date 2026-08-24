@@ -740,3 +740,90 @@ mark { background: #f0d98d; }
 }
 .evidence-score { background: #e3d8ec; }
 .setting-status { border-color: #a18ab2; }
+
+.remedy-typeahead {
+  position: relative;
+  z-index: 6;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #9680a9;
+  border-radius: 3px 15px 3px 15px;
+  background: #fffaf0;
+  box-shadow: 5px 6px 0 rgba(84, 67, 98, 0.1);
+}
+.remedy-typeahead-head {
+  min-height: 29px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 11px;
+  color: #5d496f;
+  background: linear-gradient(90deg, #e7def0, #fff1c2);
+  border-bottom: 1px solid #c9b9d6;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+}
+.remedy-typeahead-head b { color: #74612a; font-size: 6px; }
+.remedy-typeahead-list { display: grid; }
+.remedy-typeahead-list > button {
+  width: 100%;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr) auto 15px;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border: 0;
+  border-bottom: 1px solid #e6ddef;
+  color: #342f38;
+  background: #fffaf0;
+  text-align: left;
+}
+.remedy-typeahead-list > button:last-child { border-bottom: 0; }
+.remedy-typeahead-list > button:hover { background: #f3edf8; }
+.remedy-typeahead-list > button.selected { background: #fff1bd; box-shadow: inset 4px 0 0 #d8b957; }
+.remedy-typeahead-rank {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50% 50% 5px 50%;
+  color: #fffaf0;
+  background: #5d496f;
+  font-size: 7px;
+  font-weight: 850;
+}
+.remedy-typeahead-name,
+.remedy-typeahead-score { min-width: 0; display: grid; gap: 2px; }
+.remedy-typeahead-name strong { overflow: hidden; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.remedy-typeahead-name small,
+.remedy-typeahead-score small { color: #746a7b; font-size: 6px; }
+.remedy-typeahead-score { justify-items: end; }
+.remedy-typeahead-score b { color: #5d496f; font-size: 8px; }
+.remedy-typeahead-list svg { color: #806b94; }
+.remedy-typeahead-empty {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: #746a7b;
+  font-size: 8px;
+}
+.mini-spinner {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid #d9cee5;
+  border-top-color: #5d496f;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@media (max-width: 640px) {
+  .remedy-typeahead-list > button { grid-template-columns: 24px minmax(0, 1fr) 14px; }
+  .remedy-typeahead-score { display: none; }
+}

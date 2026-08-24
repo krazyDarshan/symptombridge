@@ -118,16 +118,24 @@ function Dashboard({ patients, recordsStatus, onAddPatient }) {
   const navigate = useNavigate();
   const metadata = useDatasetMeta();
   const [quickSearch, setQuickSearch] = useState("");
+  const quickSearchSegments = useMemo(() => quickSearch.trim().length >= 2 ? [quickSearch.trim()] : [], [quickSearch]);
+  const { status: quickSearchStatus, results: quickSearchResults } = useRemedySearch(quickSearchSegments, 6);
+  const openFinder = () => {
+    const query = quickSearch.trim();
+    if (query.length < 2) return;
+    navigate("/search", { state: { query } });
+  };
   const beginSearch = (event) => {
     event.preventDefault();
-    navigate("/search", { state: { query: quickSearch.trim() } });
+    openFinder();
   };
 
   return <div>
     <PageHeader eyebrow="Clinical reference workspace" title="From symptoms to source evidence" description="Move from the patient’s words to source-linked remedy candidates in one clear workflow." action={<button className="primary-btn" onClick={() => patients.length ? navigate("/consultation") : onAddPatient()}><Plus size={17} /> New consultation</button>} />
     <section className="search-entry-card">
       <div className="search-entry-copy"><span className="section-kicker"><Stethoscope size={16} /> Begin with the symptom</span><h2>Search the complete Materia Medica source.</h2><p>Results change as you type. Add distinct symptoms one by one to keep remedies that match the whole case at the top.</p></div>
-      <form className="quick-search" onSubmit={beginSearch}><Search size={20} /><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Describe a symptom, modality or location…" aria-label="Quick symptom search" /><button className="primary-btn" type="submit" disabled={quickSearch.trim().length < 2}>Find remedies</button></form>
+      <form className="quick-search" onSubmit={beginSearch}><Search size={20} /><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Describe a symptom, modality or location…" aria-label="Quick symptom search" autoComplete="off" aria-controls="overview-remedy-suggestions" aria-expanded={quickSearch.trim().length >= 2} /><button className="primary-btn" type="submit" disabled={quickSearch.trim().length < 2}>Open full finder</button></form>
+      <LiveRemedySuggestions id="overview-remedy-suggestions" query={quickSearch} status={quickSearchStatus} results={quickSearchResults} onChoose={openFinder} />
     </section>
     <div className="dataset-stats">
       <DatasetStat value={metadata.symptomCount?.toLocaleString()} label="Indexed symptoms" />
@@ -299,8 +307,9 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
     <div className="finder-main">
       <div className="finder-input-panel">
         <div className="finder-label-row"><label htmlFor={`remedy-query-${compact ? "consultation" : "standalone"}`}>Describe one symptom</label><span>{status === "loading" ? "Loading source…" : metadata ? `${metadata.symptomCount.toLocaleString()} source symptoms ready` : "Source unavailable"}</span></div>
-        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
+        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" aria-controls={`finder-remedy-suggestions-${compact ? "consultation" : "standalone"}`} aria-expanded={draft.trim().length >= 2} />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
         <p className="finder-help">Results update while you type. Press Enter to confirm this symptom, then enter the next one.</p>
+        <LiveRemedySuggestions id={`finder-remedy-suggestions-${compact ? "consultation" : "standalone"}`} query={draft} status={status} results={results} selectedRemedies={selectedRemedies} onChoose={toggleRemedy} />
         {hasExpandedInterpretation && <div className="query-interpretation"><Info size={15} /><div><strong>Interpreted clinical concepts</strong><div>{effectiveSegments.map((segment, index) => <span key={`${segment}-${index}`}>{segment}</span>)}</div>{corrections.length > 0 && <p>{corrections.map((correction) => `“${correction.from}” → “${correction.to}”`).join(" · ")}</p>}</div></div>}
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
       </div>
@@ -323,6 +332,25 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
       <div className="summary-note"><ShieldCheck size={16} /><p>The doctor reviews the source wording and makes the final selection.</p></div>
     </aside>
   </section>;
+}
+
+function LiveRemedySuggestions({ id, query, status, results, selectedRemedies = [], onChoose }) {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 2) return null;
+  const suggestions = results.slice(0, 5);
+  const isUpdating = status === "loading" || status === "searching";
+  return <div className="remedy-typeahead" id={id} role="listbox" aria-label="Live remedy suggestions">
+    <div className="remedy-typeahead-head"><span>{isUpdating ? "Finding remedies…" : "Remedies matching as you type"}</span><b>{suggestions.length ? `Top ${suggestions.length}` : "Live search"}</b></div>
+    {suggestions.length ? <div className="remedy-typeahead-list">{suggestions.map((remedy, index) => {
+      const selected = selectedRemedies.some((item) => item.id === remedy.id);
+      return <button type="button" role="option" aria-selected={selected} className={selected ? "selected" : ""} key={remedy.id} onClick={() => onChoose(remedy)}>
+        <span className="remedy-typeahead-rank">{index + 1}</span>
+        <span className="remedy-typeahead-name"><strong>{remedy.name}</strong><small>{remedy.scientific}</small></span>
+        <span className="remedy-typeahead-score"><b>{remedy.alignmentPercent}%</b><small>source match</small></span>
+        <ChevronRight size={15} />
+      </button>;
+    })}</div> : <div className="remedy-typeahead-empty">{isUpdating ? <><span className="mini-spinner" />Searching the source dataset…</> : "No clear match yet—keep typing the symptom."}</div>}
+  </div>;
 }
 
 function SymptomChips({ symptoms, onRemove, emptyText }) {

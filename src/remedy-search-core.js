@@ -243,7 +243,7 @@ function tokenStrength(symptom, queryToken, queryNegated = false) {
   if (symptom.tokenSet.has(queryToken)) return adjusted(queryStem, 1, true);
   if (symptom.stemSet.has(queryStem)) return adjusted(queryStem, 0.93, false);
 
-  if (queryToken.length >= 3) {
+  if (queryToken.length >= 2) {
     const prefixToken = symptom.tokens.find((token) => token.startsWith(queryToken));
     if (prefixToken) return adjusted(stem(prefixToken), 0.82, false);
   }

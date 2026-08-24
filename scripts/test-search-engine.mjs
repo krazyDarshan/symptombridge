@@ -21,6 +21,10 @@ const earQuery = engine.search(["ear pain"], 5);
 assert.ok(earQuery.results.length > 0);
 assert.equal(earQuery.results.every((remedy) => remedy.evidence.some((evidence) => /(^|[^a-z])ear([^a-z]|$)/i.test(evidence.text))), true);
 
+const livePrefixQuery = engine.search(["co"], 5);
+assert.equal(livePrefixQuery.results.length, 5);
+assert.equal(livePrefixQuery.results.every((remedy) => remedy.evidence.some((evidence) => /\bco[a-z]+/i.test(evidence.text))), true);
+
 const row = (id, text) => [id, 1, text, "", 1, 1];
 const coverageEngine = createRemedySearchEngine({
   preparations: [
