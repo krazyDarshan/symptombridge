@@ -497,7 +497,11 @@ h1, h2, h3, .brand-name, .dataset-stat strong, .result-rank {
   color: #4f3b65; background: linear-gradient(135deg, #eee8fa 0%, #f5effc 60%, #fff2bd 100%);
   border: 1px solid #cfc0e1; box-shadow: 9px 10px 0 #eee0a8;
 }
-.search-entry-card::after { content: "INDEX"; position: absolute; right: -6px; top: 14px; color: rgba(86, 60, 114, 0.07); font-family: Georgia, serif; font-size: 86px; letter-spacing: -4px; }
+.search-entry-card::after {
+  content: "INDEX"; position: absolute; top: 29px; right: 34px; z-index: 0;
+  color: rgba(86, 60, 114, 0.065); font-family: Georgia, serif; font-size: 48px;
+  line-height: 1; letter-spacing: 5px; white-space: nowrap; pointer-events: none;
+}
 .search-entry-card .section-kicker { color: #6f5095; }
 .search-entry-copy { position: relative; z-index: 1; }
 .search-entry-copy h2 { color: #543b70; font-size: 28px; font-weight: 500; }
@@ -709,7 +713,7 @@ tbody tr:hover { background: #fff6ed; }
   .page-heading-copy::before { width: 4px; }
   .page-header h1 { font-size: 30px; }
   .search-entry-card { border-radius: 3px 22px 3px 22px; box-shadow: 6px 7px 0 #e6c7b5; }
-  .search-entry-card::after { font-size: 58px; }
+  .search-entry-card::after { display: none; }
   .finder-input-panel::before { display: none; }
   .remedy-result { grid-template-columns: 37px minmax(0, 1fr); }
   .result-rank { width: 34px; height: 34px; font-size: 12px; }
