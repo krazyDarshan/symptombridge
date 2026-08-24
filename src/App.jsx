@@ -35,8 +35,8 @@ function App() {
     <div className="app-shell">
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
-          <div className="brand-mark"><HeartPulse size={20} /></div>
-          <div><div className="brand-name">SymptomBridge</div><div className="brand-subtitle">Materia Medica workspace</div></div>
+          <div className="brand-mark" aria-hidden="true"><span>S</span><i>B</i></div>
+          <div><div className="brand-name">SymptomBridge</div><div className="brand-subtitle">Clinical casebook · Vol. I</div></div>
           <button className="icon-btn mobile-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu"><X size={18} /></button>
         </div>
         <div className="nav-label">Clinical workspace</div>
@@ -54,7 +54,7 @@ function App() {
         </nav>
         <div className="sidebar-footer">
           <div className="secure-badge"><ShieldCheck size={15} /><span>Clinical reference only</span></div>
-          <div className="version">Dataset v1.0.0</div>
+          <div className="version">77 remedies · Dataset v1.0.0</div>
         </div>
       </aside>
 
@@ -63,10 +63,10 @@ function App() {
       <div className="main-area">
         <header className="topbar">
           <button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
-          <div className="breadcrumbs"><span>Workspace</span><ChevronRight size={13} /><strong>{pageTitle(location.pathname)}</strong></div>
+          <div className="breadcrumbs"><span>Casebook index</span><ChevronRight size={13} /><strong>{pageTitle(location.pathname)}</strong></div>
           <div className="top-actions">
             <button className="icon-btn" aria-label="Notifications"><Bell size={18} /></button>
-            <div className="profile"><div className="avatar">DR</div><div className="profile-text"><strong>Practitioner</strong><span>Clinical workspace</span></div></div>
+            <div className="profile"><div className="avatar">DR</div><div className="profile-text"><strong>Practitioner</strong><span>Casebook desk</span></div></div>
           </div>
         </header>
         <main className="content">
@@ -105,7 +105,7 @@ function SideLink({ to, icon, label }) {
 }
 
 function PageHeader({ eyebrow, title, description, action }) {
-  return <div className="page-header"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{action}</div>;
+  return <div className="page-header"><div className="page-heading-copy"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1><p>{description}</p></div>{action}<span className="page-header-rule" aria-hidden="true" /></div>;
 }
 
 function useDatasetMeta() {
@@ -367,7 +367,7 @@ function AutomaticReviewSet({ recommendation, results, segments, selectedRemedie
 function RemedyResult({ rank, remedy, selected, querySegments, onSelect, onEvidence }) {
   const primaryEvidence = remedy.evidence[0];
   return <article className={`remedy-result ${selected ? "selected" : ""}`}>
-    <div className="result-rank">{rank}</div>
+    <div className="result-rank">{String(rank).padStart(2, "0")}</div>
     <div className="result-content">
       <div className="result-title-row"><div><h3>{remedy.name}</h3><p>{remedy.scientific} · {remedy.code}</p></div><div className="result-badges"><span className="alignment-score">{remedy.alignmentPercent}% source alignment</span><span className="match-label">{remedy.label}</span><PriorityBadge priority={remedy.highestPriority} /></div></div>
       <div className="coverage-row"><div className="coverage-track"><span style={{ width: `${Math.round((remedy.matchedSegmentCount / remedy.totalSegmentCount) * 100)}%` }} /></div><strong>{remedy.matchedSegmentCount} of {remedy.totalSegmentCount} symptoms supported</strong></div>
