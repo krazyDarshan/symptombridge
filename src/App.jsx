@@ -3,22 +3,10 @@ import { NavLink, Route, Routes, useLocation, useNavigate, useParams } from "rea
 import {
   ArrowLeft, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
   CircleHelp, ClipboardList, Database, FileSearch, HeartPulse, Home, Info,
-  LogOut, Menu, Plus, Search, Settings, ShieldCheck, Stethoscope, Users, X,
+  LogOut, Menu, Plus, Search, Settings, ShieldCheck, Stethoscope, UserPlus, Users, X,
 } from "lucide-react";
 import { useRemedySearch } from "./useRemedySearch";
-
-const patients = [
-  { id: "P-1042", name: "Aarav Mehta", age: 28, lastVisit: "21 Aug 2026", status: "Active", symptom: "Left-sided throbbing headache" },
-  { id: "P-1037", name: "Ishita Rao", age: 34, lastVisit: "20 Aug 2026", status: "Follow-up", symptom: "Digestive discomfort after meals" },
-  { id: "P-1029", name: "Kabir Shah", age: 41, lastVisit: "18 Aug 2026", status: "Completed", symptom: "Intermittent shoulder stiffness" },
-  { id: "P-1021", name: "Ananya Nair", age: 25, lastVisit: "17 Aug 2026", status: "Active", symptom: "Seasonal nasal irritation" },
-];
-
-const exampleSymptoms = [
-  "throbbing headache on the left side",
-  "burning stomach after eating",
-  "dry cough worse at night",
-];
+import { useClinicalRecords } from "./useClinicalRecords";
 
 const fallbackDatasetMeta = {
   datasetVersion: "1.0.0",
@@ -30,8 +18,10 @@ const fallbackDatasetMeta = {
 
 function App() {
   const location = useLocation();
+  const records = useClinicalRecords();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [evidence, setEvidence] = useState(null);
+  const [patientModalOpen, setPatientModalOpen] = useState(false);
   const [toast, setToast] = useState("");
 
   const showToast = (message) => {
@@ -76,24 +66,25 @@ function App() {
           <div className="breadcrumbs"><span>Workspace</span><ChevronRight size={13} /><strong>{pageTitle(location.pathname)}</strong></div>
           <div className="top-actions">
             <button className="icon-btn" aria-label="Notifications"><Bell size={18} /></button>
-            <div className="profile"><div className="avatar">DR</div><div className="profile-text"><strong>Dr. Riya</strong><span>Practitioner</span></div></div>
+            <div className="profile"><div className="avatar">DR</div><div className="profile-text"><strong>Practitioner</strong><span>Clinical workspace</span></div></div>
           </div>
         </header>
         <main className="content">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/patients" element={<Patients showToast={showToast} />} />
-            <Route path="/patients/:id" element={<PatientProfile />} />
-            <Route path="/consultation" element={<Consultation showToast={showToast} setEvidence={setEvidence} />} />
+            <Route path="/" element={<Dashboard patients={records.patients} recordsStatus={records.status} onAddPatient={() => setPatientModalOpen(true)} />} />
+            <Route path="/dashboard" element={<Dashboard patients={records.patients} recordsStatus={records.status} onAddPatient={() => setPatientModalOpen(true)} />} />
+            <Route path="/patients" element={<Patients patients={records.patients} recordsStatus={records.status} onAddPatient={() => setPatientModalOpen(true)} />} />
+            <Route path="/patients/:id" element={<PatientProfile patients={records.patients} cases={records.cases} recordsStatus={records.status} />} />
+            <Route path="/consultation" element={<Consultation patients={records.patients} recordsStatus={records.status} onAddPatient={() => setPatientModalOpen(true)} onSaveCase={records.saveCase} showToast={showToast} setEvidence={setEvidence} />} />
             <Route path="/search" element={<SearchPage setEvidence={setEvidence} showToast={showToast} />} />
-            <Route path="/cases" element={<Cases />} />
+            <Route path="/cases" element={<Cases cases={records.cases} recordsStatus={records.status} />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<Dashboard />} />
           </Routes>
         </main>
       </div>
       {evidence && <EvidenceModal remedy={evidence} onClose={() => setEvidence(null)} />}
+      {patientModalOpen && <AddPatientModal onClose={() => setPatientModalOpen(false)} onSave={async (details) => { const patient = await records.addPatient(details); setPatientModalOpen(false); showToast(`${patient.name} added to patient records.`); }} />}
       {toast && <div className="toast" role="status"><CheckCircle2 size={17} />{toast}</div>}
     </div>
   );
@@ -125,7 +116,7 @@ function useDatasetMeta() {
   return metadata;
 }
 
-function Dashboard() {
+function Dashboard({ patients, recordsStatus, onAddPatient }) {
   const navigate = useNavigate();
   const metadata = useDatasetMeta();
   const [quickSearch, setQuickSearch] = useState("");
@@ -135,7 +126,7 @@ function Dashboard() {
   };
 
   return <div>
-    <PageHeader eyebrow="Good morning, Dr. Riya" title="Clinical workspace" description="Move from the patient’s words to source-linked remedy candidates in one clear workflow." action={<button className="primary-btn" onClick={() => navigate("/consultation")}><Plus size={17} /> New consultation</button>} />
+    <PageHeader eyebrow="Clinical reference workspace" title="From symptoms to source evidence" description="Move from the patient’s words to source-linked remedy candidates in one clear workflow." action={<button className="primary-btn" onClick={() => patients.length ? navigate("/consultation") : onAddPatient()}><Plus size={17} /> New consultation</button>} />
     <section className="search-entry-card">
       <div className="search-entry-copy"><span className="section-kicker"><Stethoscope size={16} /> Begin with the symptom</span><h2>Search the complete Materia Medica source.</h2><p>Results change as you type. Add distinct symptoms one by one to keep remedies that match the whole case at the top.</p></div>
       <form className="quick-search" onSubmit={beginSearch}><Search size={20} /><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Describe a symptom, modality or location…" aria-label="Quick symptom search" /><button className="primary-btn" type="submit" disabled={quickSearch.trim().length < 2}>Find remedies</button></form>
@@ -149,7 +140,7 @@ function Dashboard() {
     <div className="two-col">
       <section className="panel">
         <div className="panel-head"><div><h3>Recent patients</h3><p>Continue a consultation or review the last recorded concern.</p></div><button className="text-btn" onClick={() => navigate("/patients")}>View patients <ChevronRight size={15} /></button></div>
-        <div className="case-list">{patients.slice(0, 3).map((patient) => <button className="case-row" key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}><div className="case-avatar">{initials(patient.name)}</div><div className="case-main"><strong>{patient.name}</strong><span>{patient.symptom}</span></div><span className={`status ${patient.status === "Follow-up" ? "amber" : patient.status === "Completed" ? "neutral" : ""}`}>{patient.status}</span><ChevronRight size={17} /></button>)}</div>
+        {recordsStatus === "loading" ? <InlineLoading text="Loading patient records…" /> : patients.length ? <div className="case-list">{patients.slice(0, 3).map((patient) => <button className="case-row" key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}><div className="case-avatar">{initials(patient.name)}</div><div className="case-main"><strong>{patient.name}</strong><span>{patient.symptom || "No consultation recorded"}</span></div><span className={`status ${patient.status === "Follow-up" ? "amber" : patient.status === "Completed" ? "neutral" : ""}`}>{patient.status}</span><ChevronRight size={17} /></button>)}</div> : <CompactEmptyState icon={<UserPlus size={20} />} title="No patient records yet" text="Add the first patient when an actual consultation begins." action="Add patient" onAction={onAddPatient} />}
       </section>
       <section className="panel workflow-panel"><div className="panel-head"><div><h3>One connected flow</h3><p>Keep the source evidence and practitioner decision together.</p></div></div><WorkflowRow number="1" title="Capture" text="Record the patient’s words without changing their meaning." /><WorkflowRow number="2" title="Compare" text="Add symptoms and review remedies that match across them." /><WorkflowRow number="3" title="Select" text="Choose the remedy and retain its source evidence." /></section>
     </div>
@@ -160,38 +151,46 @@ function Dashboard() {
 function DatasetStat({ value, label }) { return <div className="dataset-stat"><strong>{value}</strong><span>{label}</span></div>; }
 function WorkflowRow({ number, title, text }) { return <div className="workflow-row"><span>{number}</span><div><strong>{title}</strong><p>{text}</p></div></div>; }
 
-function Patients({ showToast }) {
+function Patients({ patients, recordsStatus, onAddPatient }) {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const filtered = patients.filter((patient) => `${patient.name} ${patient.id} ${patient.symptom}`.toLowerCase().includes(query.toLowerCase()));
   return <div>
-    <PageHeader eyebrow="Patient records" title="Patients" description="Find a patient and continue their connected consultation history." action={<button className="primary-btn" onClick={() => showToast("Patient creation is ready for the secure patient database.")}><Plus size={17} /> Add patient</button>} />
-    <section className="panel"><div className="toolbar"><div className="search-box"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, ID or last concern…" /></div><span className="record-count">{filtered.length} records</span></div><div className="table-wrap"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age</th><th>Last visit</th><th>Status</th><th /></tr></thead><tbody>{filtered.map((patient) => <tr key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}><td><div className="person-cell"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom}</span></div></div></td><td>{patient.id}</td><td>{patient.age}</td><td>{patient.lastVisit}</td><td><span className={`status ${patient.status === "Follow-up" ? "amber" : patient.status === "Completed" ? "neutral" : ""}`}>{patient.status}</span></td><td><ChevronRight size={17} /></td></tr>)}</tbody></table></div></section>
+    <PageHeader eyebrow="Patient records" title="Patients" description="Only patients entered by the practitioner appear here—there are no seeded profiles." action={<button className="primary-btn" onClick={onAddPatient}><Plus size={17} /> Add patient</button>} />
+    <section className="panel"><div className="toolbar"><div className="search-box"><Search size={18} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, ID or last concern…" /></div><span className="record-count">{filtered.length} records</span></div>{recordsStatus === "loading" ? <InlineLoading text="Loading patient records…" /> : filtered.length ? <div className="table-wrap"><table><thead><tr><th>Patient</th><th>Patient ID</th><th>Age</th><th>Last visit</th><th>Status</th><th /></tr></thead><tbody>{filtered.map((patient) => <tr key={patient.id} onClick={() => navigate(`/patients/${patient.id}`)}><td><div className="person-cell"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom || "No consultation recorded"}</span></div></div></td><td>{patient.id}</td><td>{patient.age || "—"}</td><td>{patient.lastVisit || "No visits"}</td><td><span className={`status ${patient.status === "Follow-up" ? "amber" : patient.status === "Completed" ? "neutral" : ""}`}>{patient.status}</span></td><td><ChevronRight size={17} /></td></tr>)}</tbody></table></div> : <CompactEmptyState icon={<UserPlus size={20} />} title={query ? "No matching patient" : "No patient records yet"} text={query ? "Try a different name, patient ID or concern." : "Create a record when a real patient begins a consultation."} action={query ? null : "Add first patient"} onAction={onAddPatient} />}</section>
   </div>;
 }
 
-function PatientProfile() {
+function PatientProfile({ patients, cases, recordsStatus }) {
   const { id } = useParams();
   const navigate = useNavigate();
-  const patient = patients.find((item) => item.id === id) || patients[0];
+  const patient = patients.find((item) => item.id === id);
+  const patientCases = cases.filter((item) => item.patientId === id);
+  if (recordsStatus === "loading") return <InlineLoading text="Loading patient record…" />;
+  if (!patient) return <div><button className="back-btn" onClick={() => navigate("/patients")}><ArrowLeft size={16} /> Back to patients</button><CompactEmptyState icon={<Users size={21} />} title="Patient not found" text="This patient record does not exist or is no longer available." /></div>;
   return <div>
     <button className="back-btn" onClick={() => navigate("/patients")}><ArrowLeft size={16} /> Back to patients</button>
     <PageHeader eyebrow="Patient profile" title={patient.name} description={`${patient.id} · Age ${patient.age} · Last visit ${patient.lastVisit}`} action={<button className="primary-btn" onClick={() => navigate("/consultation", { state: { patientId: patient.id } })}><Plus size={17} /> New consultation</button>} />
-    <div className="profile-grid"><section className="panel profile-summary"><div className="large-avatar">{initials(patient.name)}</div><h3>{patient.name}</h3><span className="muted">{patient.id}</span><div className="profile-details"><div><span>Age</span><strong>{patient.age}</strong></div><div><span>Status</span><strong>{patient.status}</strong></div><div><span>Last visit</span><strong>{patient.lastVisit}</strong></div></div></section><section className="panel"><div className="panel-head"><div><h3>Consultation history</h3><p>Symptoms, source matches and practitioner decisions remain connected.</p></div></div><div className="history-card"><div className="history-date">21 AUG 2026</div><strong>{patient.symptom}</strong><p>Symptoms captured. Remedy source review awaiting a saved practitioner decision.</p><div className="history-meta"><span>Source reviewed</span><span>Follow-up pending</span></div></div></section></div>
+    <div className="profile-grid"><section className="panel profile-summary"><div className="large-avatar">{initials(patient.name)}</div><h3>{patient.name}</h3><span className="muted">{patient.id}</span><div className="profile-details"><div><span>Age</span><strong>{patient.age || "Not recorded"}</strong></div><div><span>Status</span><strong>{patient.status}</strong></div><div><span>Last visit</span><strong>{patient.lastVisit || "No visits"}</strong></div></div></section><section className="panel"><div className="panel-head"><div><h3>Consultation history</h3><p>Symptoms, source matches and practitioner decisions remain connected.</p></div></div>{patientCases.length ? <div className="history-list">{patientCases.map((record) => <div className="history-card" key={record.id}><div className="history-date">{record.date}</div><strong>{record.symptoms.join(" · ")}</strong><p><b>{record.remedyName}</b> was selected after source review.{record.rationale ? ` ${record.rationale}` : ""}</p><div className="history-meta"><span>{record.remedyCode}</span><span>{record.symptoms.length} symptom{record.symptoms.length === 1 ? "" : "s"}</span></div></div>)}</div> : <CompactEmptyState icon={<ClipboardList size={20} />} title="No consultations recorded" text="Completed consultations for this patient will appear here." />}</section></div>
   </div>;
 }
 
-function Consultation({ showToast, setEvidence }) {
+function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showToast, setEvidence }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
-  const [patientId, setPatientId] = useState(location.state?.patientId || patients[0].id);
+  const [patientId, setPatientId] = useState(location.state?.patientId || "");
   const [description, setDescription] = useState("");
   const [symptoms, setSymptoms] = useState([]);
   const [symptomDraft, setSymptomDraft] = useState("");
   const [selectedRemedy, setSelectedRemedy] = useState(null);
   const [rationale, setRationale] = useState("");
+  const [saving, setSaving] = useState(false);
   const patient = patients.find((item) => item.id === patientId) || patients[0];
+
+  useEffect(() => {
+    if (!patientId && patients[0]) setPatientId(patients[0].id);
+  }, [patientId, patients]);
 
   const addCapturedSymptom = () => {
     const value = symptomDraft.trim();
@@ -205,13 +204,42 @@ function Consultation({ showToast, setEvidence }) {
   };
   const searchSymptoms = symptoms.length > 0 ? symptoms : [description.trim()].filter(Boolean);
 
+  const completeConsultation = async () => {
+    if (!patient || !selectedRemedy || saving) return;
+    setSaving(true);
+    try {
+      await onSaveCase({
+        patientId: patient.id,
+        description: description.trim(),
+        symptoms: searchSymptoms,
+        remedy: {
+          id: selectedRemedy.id,
+          code: selectedRemedy.code,
+          name: selectedRemedy.name,
+          scientific: selectedRemedy.scientific,
+        },
+        rationale: rationale.trim(),
+        datasetVersion: "1.0.0",
+      });
+      showToast("Consultation saved to the patient record.");
+      navigate("/cases");
+    } catch (saveError) {
+      showToast(saveError.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (recordsStatus === "loading") return <InlineLoading text="Loading patient records…" />;
+  if (!patient) return <div><PageHeader eyebrow="New consultation" title="Add a patient first" description="A consultation must be connected to an actual patient record." /><section className="panel consultation-panel"><CompactEmptyState icon={<UserPlus size={22} />} title="No patient records available" text="Add the patient’s real details, then return here to begin symptom capture." action="Add patient" onAction={onAddPatient} /></section></div>;
+
   return <div>
     <PageHeader eyebrow="New consultation" title={patient.name} description="Capture symptoms, compare source-linked remedies, and record the practitioner’s selection." />
     <div className="stepper">{["Patient", "Symptoms", "Remedy review", "Decision"].map((label, index) => <div className={`step ${step === index + 1 ? "current" : step > index + 1 ? "done" : ""}`} key={label}><div className="step-circle">{step > index + 1 ? <Check size={15} /> : index + 1}</div><span>{label}</span></div>)}</div>
     {step === 1 && <section className="panel consultation-panel"><SectionTitle number="01" title="Select the patient" text="The consultation and final remedy selection will remain connected to this record." /><label htmlFor="consultation-patient">Patient</label><select id="consultation-patient" value={patientId} onChange={(event) => setPatientId(event.target.value)}>{patients.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id}</option>)}</select><div className="selected-patient"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom}</span></div><span className="status">{patient.status}</span></div><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
-    {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Example: burning stomach after eating" /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
+    {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Enter one confirmed symptom" /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
     {step === 3 && <div><RemedyFinder key={searchSymptoms.join("|")} initialSymptoms={searchSymptoms} selectedRemedy={selectedRemedy} onSelect={setSelectedRemedy} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedy ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedy.name}</strong> selected for review</span></> : <span>Select one remedy after checking the source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
-    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record should include the symptoms, selected remedy, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Selected remedy</span><strong>{selectedRemedy?.name}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Selection rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this remedy was selected after reviewing the matched source symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)}>Back</button><button className="primary-btn" onClick={() => { showToast("Consultation is ready for secure database saving."); navigate("/cases"); }}><CheckCircle2 size={16} /> Complete consultation</button></div></section>}
+    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, selected remedy, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Selected remedy</span><strong>{selectedRemedy?.name}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Selection rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this remedy was selected after reviewing the matched source symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
   </div>;
 }
 
@@ -241,13 +269,13 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
     <div className="finder-main">
       <div className="finder-input-panel">
         <div className="finder-label-row"><label htmlFor={`remedy-query-${compact ? "consultation" : "standalone"}`}>Describe one symptom</label><span>{status === "loading" ? "Loading source…" : metadata ? `${metadata.symptomCount.toLocaleString()} source symptoms ready` : "Source unavailable"}</span></div>
-        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Example: throbbing headache, worse from movement…" autoComplete="off" />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
+        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
         <p className="finder-help">Results update while you type. Press Enter to confirm this symptom, then enter the next one.</p>
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
       </div>
       <div className="results-header"><div><h2>{activeSegments.length ? "Matching remedies" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} remedies shown · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; you can add location, sensation, timing and modalities."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Updating results</span>}</div>
       {error && <div className="error-state"><Info size={18} /><span>{error}</span></div>}
-      {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Try an example, or begin typing above.</p><div className="example-list">{exampleSymptoms.map((example) => <button key={example} onClick={() => setDraft(example)}>{example}</button>)}</div></div>}
+      {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
       {activeSegments.length > 0 && status !== "loading" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
       <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedy?.id === remedy.id} querySegments={activeSegments} onSelect={() => onSelect(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: activeSegments })} />)}</div>
@@ -307,8 +335,46 @@ function EvidenceModal({ remedy, onClose }) {
   </div></div>;
 }
 
-function Cases() {
-  return <div><PageHeader eyebrow="Continuity" title="Case records" description="Consultations, reviewed candidates and practitioner decisions in one history." /><section className="panel"><div className="table-wrap"><table><thead><tr><th>Case</th><th>Patient</th><th>Date</th><th>Last concern</th><th>Status</th></tr></thead><tbody>{patients.map((patient, index) => <tr key={patient.id}><td><strong>C-{String(104 + index).padStart(4, "0")}</strong></td><td>{patient.name}</td><td>{patient.lastVisit}</td><td>{patient.symptom}</td><td><span className={`status ${patient.status === "Follow-up" ? "amber" : patient.status === "Completed" ? "neutral" : ""}`}>{patient.status}</span></td></tr>)}</tbody></table></div></section></div>;
+function AddPatientModal({ onClose, onSave }) {
+  const [form, setForm] = useState({ name: "", age: "", sex: "", phone: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const update = (field) => (event) => setForm((current) => ({ ...current, [field]: event.target.value }));
+  const submit = async (event) => {
+    event.preventDefault();
+    if (form.name.trim().length < 2) { setError("Enter the patient’s full name."); return; }
+    setSaving(true); setError("");
+    try {
+      await onSave({ ...form, name: form.name.trim(), age: form.age ? Number(form.age) : null });
+    } catch (saveError) {
+      setError(saveError.message);
+      setSaving(false);
+    }
+  };
+  return <div className="modal-backdrop" onClick={onClose}><form className="modal patient-modal" onSubmit={submit} onClick={(event) => event.stopPropagation()}>
+    <div className="modal-head"><div><span className="eyebrow">New patient record</span><h2>Add an actual patient</h2><p>The patient ID is generated automatically.</p></div><button type="button" className="icon-btn" onClick={onClose} aria-label="Close patient form"><X size={19} /></button></div>
+    <div className="patient-form-grid">
+      <label className="field-wide"><span>Full name *</span><input autoFocus value={form.name} onChange={update("name")} placeholder="Enter the patient’s full name" autoComplete="name" /></label>
+      <label><span>Age</span><input type="number" min="0" max="120" value={form.age} onChange={update("age")} placeholder="Years" /></label>
+      <label><span>Sex</span><select value={form.sex} onChange={update("sex")}><option value="">Not recorded</option><option value="Female">Female</option><option value="Male">Male</option><option value="Other">Other</option></select></label>
+      <label className="field-wide"><span>Phone (optional)</span><input value={form.phone} onChange={update("phone")} placeholder="Contact number" autoComplete="tel" /></label>
+    </div>
+    {error && <div className="form-error"><Info size={16} />{error}</div>}
+    <div className="privacy-note"><ShieldCheck size={17} /><span>Enter only genuine patient details with appropriate consent. No sample profiles will be added.</span></div>
+    <div className="modal-actions"><button type="button" className="secondary-btn" onClick={onClose} disabled={saving}>Cancel</button><button className="primary-btn" type="submit" disabled={saving}><UserPlus size={16} />{saving ? "Saving…" : "Add patient"}</button></div>
+  </form></div>;
+}
+
+function CompactEmptyState({ icon, title, text, action, onAction }) {
+  return <div className="compact-empty"><div className="compact-empty-icon">{icon}</div><div><h3>{title}</h3><p>{text}</p></div>{action && <button className="secondary-btn" onClick={onAction}>{action}</button>}</div>;
+}
+
+function InlineLoading({ text }) {
+  return <div className="inline-loading"><span />{text}</div>;
+}
+
+function Cases({ cases, recordsStatus }) {
+  return <div><PageHeader eyebrow="Continuity" title="Case records" description="Only completed consultations appear here; no sample cases are preloaded." /><section className="panel">{recordsStatus === "loading" ? <InlineLoading text="Loading case records…" /> : cases.length ? <div className="table-wrap"><table><thead><tr><th>Case</th><th>Patient</th><th>Date</th><th>Symptoms</th><th>Selected remedy</th></tr></thead><tbody>{cases.map((record) => <tr key={record.id}><td><strong>{record.id}</strong></td><td>{record.patientName}</td><td>{record.date}</td><td>{record.symptoms.join(" · ")}</td><td><span className="status">{record.remedyName}</span></td></tr>)}</tbody></table></div> : <CompactEmptyState icon={<ClipboardList size={21} />} title="No case records yet" text="A case will appear after a practitioner completes and saves a consultation." />}</section></div>;
 }
 
 function SettingsPage() {
