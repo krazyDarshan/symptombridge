@@ -4,6 +4,7 @@ const STOP_WORDS = new Set([
   "its", "my", "of", "or", "patient", "she", "symptom", "that", "the",
   "their", "them", "they", "this", "to", "was", "were", "with",
 ]);
+const NEGATION_TERMS = new Set(["no", "not", "never", "without"]);
 
 const SYNONYM_GROUPS = [
   ["ache", "aching", "pain", "painful", "soreness", "sore"],
@@ -46,6 +47,28 @@ const SYNONYM_GROUPS = [
   ["vomit", "vomiting", "retching", "emesis"],
 ];
 
+const BODY_LOCATION_TERMS = [
+  "abdomen", "ankle", "arm", "back", "bladder", "bowel", "brain", "breast",
+  "chest", "ear", "eye", "eyelid", "face", "finger", "foot", "forehead",
+  "gum", "hand", "head", "heart", "heel", "hip", "jaw", "knee", "leg",
+  "lip", "liver", "lung", "mouth", "neck", "nose", "ovary", "rectum",
+  "rib", "shoulder", "skin", "stomach", "throat", "thumb", "tongue",
+  "tooth", "uterus", "wrist",
+];
+
+const CONCEPT_HEAD_TERMS = [
+  "anxiety", "bleeding", "burning", "chill", "constipation", "cough", "cramp",
+  "diarrhoea", "dizziness", "fever", "headache", "itching", "nausea", "numbness",
+  "pain", "rash", "restlessness", "sadness", "sleeplessness", "stiffness",
+  "swelling", "thirst", "trembling", "urination", "vertigo", "vomiting", "weakness",
+];
+
+const COMMON_CLINICAL_TERMS = [
+  "aggravated", "ameliorated", "better", "bloody", "dry", "frequent", "hard",
+  "left", "morning", "movement", "night", "painful", "right", "severe", "sharp",
+  "shooting", "stitching", "throbbing", "worse",
+];
+
 function normalize(value) {
   return String(value || "")
     .normalize("NFKD")
@@ -73,6 +96,15 @@ function tokenize(value, keepStopWords = false) {
     .filter((token) => token.length >= 2 && (keepStopWords || !STOP_WORDS.has(token)));
 }
 
+const BODY_LOCATION_STEMS = new Set(BODY_LOCATION_TERMS.map(stem));
+const CONCEPT_HEAD_STEMS = new Set(CONCEPT_HEAD_TERMS.map(stem));
+const CORRECTION_VOCABULARY = [...new Set([
+  ...SYNONYM_GROUPS.flat(),
+  ...BODY_LOCATION_TERMS,
+  ...CONCEPT_HEAD_TERMS,
+  ...COMMON_CLINICAL_TERMS,
+])];
+
 const SYNONYMS = new Map();
 for (const group of SYNONYM_GROUPS) {
   for (const word of group) {
@@ -82,24 +114,121 @@ for (const group of SYNONYM_GROUPS) {
   }
 }
 
+function editDistanceWithin(left, right, maximum) {
+  if (Math.abs(left.length - right.length) > maximum) return maximum + 1;
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    const current = [leftIndex];
+    let rowMinimum = current[0];
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const substitution = previous[rightIndex - 1] + (left[leftIndex - 1] === right[rightIndex - 1] ? 0 : 1);
+      const value = Math.min(previous[rightIndex] + 1, current[rightIndex - 1] + 1, substitution);
+      current.push(value);
+      rowMinimum = Math.min(rowMinimum, value);
+    }
+    if (rowMinimum > maximum) return maximum + 1;
+    previous = current;
+  }
+  return previous[right.length];
+}
+
+function correctToken(token, wordFrequency) {
+  if (token.length < 5 || wordFrequency.has(token) || SYNONYMS.has(stem(token))) return token;
+  const maximum = token.length >= 6 ? 2 : 1;
+  let best = null;
+  for (const candidate of CORRECTION_VOCABULARY) {
+    if (candidate[0] !== token[0] || Math.abs(candidate.length - token.length) > maximum) continue;
+    const distance = editDistanceWithin(token, candidate, maximum);
+    if (distance > maximum) continue;
+    const frequency = wordFrequency.get(candidate) || 0;
+    const score = distance - Math.min(0.35, Math.log10(frequency + 1) * 0.08);
+    if (!best || score < best.score || (score === best.score && frequency > best.frequency)) best = { candidate, distance, frequency, score };
+  }
+  return best ? best.candidate : token;
+}
+
+function interpretSegment(segment, wordFrequency) {
+  const originalTokens = tokenize(segment);
+  const correctedTokens = originalTokens.map((token) => correctToken(token, wordFrequency));
+  const corrections = originalTokens
+    .map((token, index) => token === correctedTokens[index] ? null : ({ from: token, to: correctedTokens[index] }))
+    .filter(Boolean);
+  const headIndexes = correctedTokens
+    .map((token, index) => CONCEPT_HEAD_STEMS.has(stem(token)) ? index : -1)
+    .filter((index) => index >= 0);
+
+  let concepts = [correctedTokens.join(" ")];
+  if (headIndexes.length > 1) {
+    const bodyIndexes = correctedTokens
+      .map((token, index) => BODY_LOCATION_STEMS.has(stem(token)) ? index : -1)
+      .filter((index) => index >= 0);
+    const sideIndexes = correctedTokens
+      .map((token, index) => ["left", "right"].includes(token) ? index : -1)
+      .filter((index) => index >= 0);
+
+    concepts = headIndexes.map((headIndex) => {
+      const included = new Set([headIndex]);
+      const nearestBodyIndex = bodyIndexes
+        .map((index) => ({ index, distance: Math.abs(index - headIndex) }))
+        .filter((item) => item.distance <= 3)
+        .sort((a, b) => a.distance - b.distance || a.index - b.index)[0]?.index;
+      if (nearestBodyIndex !== undefined) {
+        included.add(nearestBodyIndex);
+        sideIndexes.filter((index) => Math.abs(index - nearestBodyIndex) <= 2).forEach((index) => included.add(index));
+      }
+      const previousIndex = headIndex - 1;
+      if (previousIndex >= 0 && !CONCEPT_HEAD_STEMS.has(stem(correctedTokens[previousIndex])) && !BODY_LOCATION_STEMS.has(stem(correctedTokens[previousIndex]))) included.add(previousIndex);
+      return [...included].sort((a, b) => a - b).map((index) => correctedTokens[index]).join(" ");
+    });
+  }
+
+  concepts = [...new Set(concepts.filter(Boolean))];
+  return {
+    original: String(segment || "").trim(),
+    corrected: correctedTokens.join(" "),
+    corrections,
+    concepts,
+  };
+}
+
 function bigrams(tokens) {
   const values = new Set();
   for (let index = 0; index < tokens.length - 1; index += 1) values.add(`${tokens[index]} ${tokens[index + 1]}`);
   return values;
 }
 
-function tokenStrength(symptom, queryToken) {
-  if (symptom.tokenSet.has(queryToken)) return { strength: 1, exact: true };
-  const queryStem = stem(queryToken);
-  if (symptom.stemSet.has(queryStem)) return { strength: 0.93, exact: false };
+function negatedStems(tokens) {
+  const values = new Set();
+  tokens.forEach((token, index) => {
+    const directlyNegated = NEGATION_TERMS.has(tokens[index - 1]);
+    const absenceOf = tokens[index - 2] === "absence" && tokens[index - 1] === "of";
+    const nearby = tokens.slice(Math.max(0, index - 4), index);
+    const scopedWithout = nearby.includes("without") && !nearby.includes("but");
+    const scopedNo = nearby.slice(-3).some((item) => ["no", "not", "never"].includes(item)) && !nearby.includes("but");
+    if (directlyNegated || absenceOf || scopedWithout || scopedNo) values.add(stem(token));
+  });
+  return values;
+}
 
-  if (queryToken.length >= 3 && symptom.tokens.some((token) => token.startsWith(queryToken))) {
-    return { strength: 0.82, exact: false };
+function tokenStrength(symptom, queryToken, queryNegated = false) {
+  const queryStem = stem(queryToken);
+  const adjusted = (matchedStem, strength, exact) => {
+    const sourceNegated = symptom.negatedStemSet?.has(matchedStem) || false;
+    if (sourceNegated !== queryNegated) return { strength: 0, exact: false };
+    return { strength, exact };
+  };
+  if (symptom.tokenSet.has(queryToken)) return adjusted(queryStem, 1, true);
+  if (symptom.stemSet.has(queryStem)) return adjusted(queryStem, 0.93, false);
+
+  if (queryToken.length >= 3) {
+    const prefixToken = symptom.tokens.find((token) => token.startsWith(queryToken));
+    if (prefixToken) return adjusted(stem(prefixToken), 0.82, false);
   }
 
   for (const alternative of SYNONYMS.get(queryStem) || []) {
-    if (symptom.tokenSet.has(alternative)) return { strength: 0.8, exact: false };
-    if (symptom.stemSet.has(stem(alternative))) return { strength: 0.74, exact: false };
+    const alternativeStem = stem(alternative);
+    if (symptom.tokenSet.has(alternative)) return adjusted(alternativeStem, 0.8, false);
+    if (symptom.stemSet.has(alternativeStem)) return adjusted(alternativeStem, 0.74, false);
   }
   return { strength: 0, exact: false };
 }
@@ -107,10 +236,12 @@ function tokenStrength(symptom, queryToken) {
 function buildQuery(segment, documentFrequency, symptomCount) {
   const normalized = normalize(segment);
   const tokens = [...new Set(tokenize(segment))];
+  const orderedTokens = tokenize(segment, true);
+  const queryNegatedStems = negatedStems(orderedTokens);
   const weightedTokens = tokens.map((token) => {
     const frequency = documentFrequency.get(stem(token)) || 0;
     const idf = Math.min(4.2, Math.log((symptomCount + 1) / (frequency + 1)) + 1);
-    return { token, weight: idf };
+    return { token, weight: idf, negated: queryNegatedStems.has(stem(token)) };
   });
   return {
     original: String(segment).trim(),
@@ -131,11 +262,11 @@ function scoreSourceSymptom(symptom, query, segmentIndex) {
   const totalWeight = query.weightedTokens.reduce((total, item) => total + item.weight, 0);
 
   for (const item of query.weightedTokens) {
-    const match = tokenStrength(symptom, item.token);
+    const match = tokenStrength(symptom, item.token, item.negated);
     if (match.strength >= 0.72) matchedTokenCount += 1;
     matchedWeight += item.weight * match.strength;
     if (match.exact) exactWeight += item.weight;
-    const emphasisMatch = tokenStrength(symptom.emphasisFeatures, item.token);
+    const emphasisMatch = tokenStrength(symptom.emphasisFeatures, item.token, item.negated);
     emphasisWeight += item.weight * emphasisMatch.strength;
   }
 
@@ -264,6 +395,7 @@ export function createRemedySearchEngine(payload) {
   }));
   const symptoms = [];
   const documentFrequency = new Map();
+  const wordFrequency = new Map();
 
   payload.preparations.forEach((preparation, remedyIndex) => {
     preparation.symptoms.forEach((row) => {
@@ -284,23 +416,28 @@ export function createRemedySearchEngine(payload) {
         tokens,
         tokenSet,
         stemSet,
+        negatedStemSet: negatedStems(tokens),
         bigrams: bigrams(tokens),
         emphasisFeatures: {
           tokens: emphasisTokens,
           tokenSet: new Set(emphasisTokens),
           stemSet: new Set(emphasisTokens.map(stem)),
+          negatedStemSet: negatedStems(emphasisTokens),
         },
       };
       symptoms.push(symptom);
       for (const tokenStem of stemSet) documentFrequency.set(tokenStem, (documentFrequency.get(tokenStem) || 0) + 1);
+      for (const token of tokenSet) wordFrequency.set(token, (wordFrequency.get(token) || 0) + 1);
     });
   });
 
   function search(segments, limit = 14) {
-    const queries = segments
+    const inputInterpretations = segments.map((segment) => interpretSegment(segment, wordFrequency));
+    const queries = inputInterpretations
+      .flatMap((interpretation) => interpretation.concepts)
       .map((segment) => buildQuery(segment, documentFrequency, symptoms.length))
       .filter((query) => query.tokens.length > 0);
-    if (!queries.length) return { results: [], combinations: [] };
+    if (!queries.length) return { results: [], combinations: [], interpretedSegments: [], inputInterpretations };
 
     const bestBySegment = queries.map(() => new Map());
     for (const symptom of symptoms) {
@@ -360,6 +497,8 @@ export function createRemedySearchEngine(payload) {
     return {
       results: allResults.slice(0, limit),
       combinations: combinationCandidates(allResults, queries.length),
+      interpretedSegments: queries.map((query) => query.original),
+      inputInterpretations,
     };
   }
 

@@ -257,7 +257,10 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
   const [confirmedSymptoms, setConfirmedSymptoms] = useState(() => initialSymptoms.filter(Boolean));
   const [draft, setDraft] = useState("");
   const activeSegments = useMemo(() => [...confirmedSymptoms, ...(draft.trim().length >= 2 ? [draft.trim()] : [])], [confirmedSymptoms, draft]);
-  const { status, results, combinations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
+  const { status, results, combinations, interpretedSegments, inputInterpretations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
+  const effectiveSegments = interpretedSegments.length ? interpretedSegments : activeSegments;
+  const corrections = inputInterpretations.flatMap((interpretation) => interpretation.corrections || []);
+  const hasExpandedInterpretation = corrections.length > 0 || inputInterpretations.some((interpretation) => interpretation.concepts?.length > 1);
   const addSymptom = () => {
     const value = draft.trim();
     if (value.length < 2 || confirmedSymptoms.some((item) => item.toLowerCase() === value.toLowerCase())) return;
@@ -271,19 +274,20 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
         <div className="finder-label-row"><label htmlFor={`remedy-query-${compact ? "consultation" : "standalone"}`}>Describe one symptom</label><span>{status === "loading" ? "Loading source…" : metadata ? `${metadata.symptomCount.toLocaleString()} source symptoms ready` : "Source unavailable"}</span></div>
         <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
         <p className="finder-help">Results update while you type. Press Enter to confirm this symptom, then enter the next one.</p>
+        {hasExpandedInterpretation && <div className="query-interpretation"><Info size={15} /><div><strong>Interpreted clinical concepts</strong><div>{effectiveSegments.map((segment, index) => <span key={`${segment}-${index}`}>{segment}</span>)}</div>{corrections.length > 0 && <p>{corrections.map((correction) => `“${correction.from}” → “${correction.to}”`).join(" · ")}</p>}</div></div>}
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
       </div>
-      <div className="results-header"><div><h2>{activeSegments.length ? "Whole-case remedy ranking" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} evidence-qualified remedies · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; add location, sensation, timing and modalities as separate symptoms."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Recalculating whole case</span>}</div>
+      <div className="results-header"><div><h2>{activeSegments.length ? "Whole-case remedy ranking" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} evidence-qualified remedies across ${effectiveSegments.length} interpreted concept${effectiveSegments.length === 1 ? "" : "s"} · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; add location, sensation, timing and modalities as separate symptoms."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Recalculating whole case</span>}</div>
       {error && <div className="error-state"><Info size={18} /><span>{error}</span></div>}
       {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
       {activeSegments.length > 0 && status !== "loading" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
-      <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedy?.id === remedy.id} querySegments={activeSegments} onSelect={() => onSelect(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: activeSegments })} />)}</div>
-      {activeSegments.length > 1 && status !== "loading" && <CoverageGroups combinations={combinations} segments={activeSegments} results={results} onEvidence={onEvidence} />}
+      <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedy?.id === remedy.id} querySegments={effectiveSegments} onSelect={() => onSelect(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: effectiveSegments })} />)}</div>
+      {effectiveSegments.length > 1 && status !== "loading" && <CoverageGroups combinations={combinations} segments={effectiveSegments} results={results} onEvidence={onEvidence} />}
     </div>
     <aside className="finder-summary">
-      <div className="summary-block"><span className="summary-label">Symptoms in this search</span><strong>{activeSegments.length || 0}</strong><p>Remedies matching more of the confirmed symptoms are kept higher in the list.</p></div>
-      <div className="summary-symptoms">{activeSegments.length ? activeSegments.map((symptom, index) => <div key={`${symptom}-${index}`}><span>{index + 1}</span><p>{symptom}</p>{index < confirmedSymptoms.length && <Check size={14} />}</div>) : <p className="empty-summary">No symptoms entered yet.</p>}</div>
+      <div className="summary-block"><span className="summary-label">Interpreted clinical concepts</span><strong>{effectiveSegments.length || 0}</strong><p>Remedies matching more of the interpreted symptom concepts are kept higher in the list.</p></div>
+      <div className="summary-symptoms">{effectiveSegments.length ? effectiveSegments.map((symptom, index) => <div key={`${symptom}-${index}`}><span>{index + 1}</span><p>{symptom}</p><Check size={14} /></div>) : <p className="empty-summary">No symptoms entered yet.</p>}</div>
       <div className="summary-divider" /><span className="summary-label">Current leader</span>
       {results[0] ? <div className="leader-card"><div className="leader-rank">1</div><div><strong>{results[0].name}</strong><span>{results[0].scientific}</span></div><p>{results[0].matchedSegmentCount} of {results[0].totalSegmentCount} symptoms matched · {results[0].alignmentPercent}% source alignment</p></div> : <p className="empty-summary">The leading remedy will appear here as you type.</p>}
       {selectedRemedy && <div className="selected-summary"><CheckCircle2 size={17} /><div><span>Selected for review</span><strong>{selectedRemedy.name}</strong></div></div>}

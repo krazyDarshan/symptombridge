@@ -7,6 +7,7 @@
     "data:build": "python scripts/build_search_index.py",
     "dev": "vite",
     "build": "vite build",
+    "test:search": "node scripts/test-search-engine.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

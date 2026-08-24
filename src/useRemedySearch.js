@@ -7,6 +7,8 @@ export function useRemedySearch(segments, limit = 10) {
   const [status, setStatus] = useState("loading");
   const [results, setResults] = useState([]);
   const [combinations, setCombinations] = useState([]);
+  const [interpretedSegments, setInterpretedSegments] = useState([]);
+  const [inputInterpretations, setInputInterpretations] = useState([]);
   const [metadata, setMetadata] = useState(null);
   const [durationMs, setDurationMs] = useState(0);
   const [error, setError] = useState("");
@@ -38,6 +40,8 @@ export function useRemedySearch(segments, limit = 10) {
       if (message.type === "results" && message.requestId === requestRef.current) {
         setResults(message.results);
         setCombinations(message.combinations || []);
+        setInterpretedSegments(message.interpretedSegments || []);
+        setInputInterpretations(message.inputInterpretations || []);
         setDurationMs(message.durationMs);
         setStatus("ready");
         return;
@@ -66,6 +70,8 @@ export function useRemedySearch(segments, limit = 10) {
     if (stableSegments.length === 0) {
       setResults([]);
       setCombinations([]);
+      setInterpretedSegments([]);
+      setInputInterpretations([]);
       setDurationMs(0);
       setStatus("ready");
       return undefined;
@@ -86,5 +92,5 @@ export function useRemedySearch(segments, limit = 10) {
     return () => window.clearTimeout(timeout);
   }, [metadata, stableSegments, limit]);
 
-  return { status, results, combinations, metadata, durationMs, error };
+  return { status, results, combinations, interpretedSegments, inputInterpretations, metadata, durationMs, error };
 }

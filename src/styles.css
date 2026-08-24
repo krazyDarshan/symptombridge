@@ -208,6 +208,13 @@ tbody tr:hover { background: #f8faf8; }
 .finder-input input::placeholder { color: #9aa7a2; }
 .clear-input { width: 30px; height: 30px; display: grid; place-items: center; border: 0; color: #8a9994; background: transparent; }
 .finder-help { margin: 8px 0 0; color: var(--muted-2); font-size: 8px; }
+.query-interpretation { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 10px 11px; border: 1px solid #c9dfe0; border-radius: 9px; color: #31566a; background: #edf7f6; }
+.query-interpretation > svg { flex: none; margin-top: 1px; color: var(--forest); }
+.query-interpretation > div { min-width: 0; display: grid; gap: 6px; }
+.query-interpretation strong { font-size: 8px; letter-spacing: 0.35px; text-transform: uppercase; }
+.query-interpretation > div > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.query-interpretation span { padding: 5px 7px; border: 1px solid #bcd7d4; border-radius: 6px; color: #195d58; background: #fff; font-size: 8px; }
+.query-interpretation p { margin: 0; color: #657a8a; font-size: 8px; }
 .symptom-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
 .symptom-chips > span { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 7px; border: 1px solid #bdd8d5; border-radius: 7px; color: #294c58; background: #eaf5f4; font-size: 9px; }
 .symptom-chips b { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 5px; color: #fff; background: var(--forest); font-size: 8px; }
