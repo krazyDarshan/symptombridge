@@ -17,12 +17,16 @@ The remedy finder uses the complete structured dataset:
 
 - Remedy candidates update while a symptom is being typed.
 - Pressing Enter confirms the current symptom.
-- Additional symptoms are scored separately.
-- Remedies matching more of the confirmed symptoms stay above partial matches.
+- Additional symptoms are matched and scored separately before whole-case ranking.
+- Word-boundary matching prevents short terms from matching inside unrelated words.
+- Rare and specific terms carry more weight than common words.
+- Exact phrases, word order, historical synonyms and modalities refine the score.
+- Missing symptoms lower a remedy's whole-case alignment.
 - Source emphasis adds a controlled ranking boost after textual relevance.
+- When no individual remedy covers the whole set, comparison groups show how two or three source remedies cover different symptoms.
 - Every result shows the supporting source wording and PDF page.
 
-The ranking is a transparent retrieval aid. It is not a diagnosis, clinical probability or treatment recommendation.
+The ranking and multi-remedy groups are transparent retrieval aids. They are not diagnoses, clinical probabilities, prescriptions or instructions to combine remedies.
 
 ## Local development
 
@@ -43,6 +47,6 @@ Create a production build:
 npm run build
 ```
 
-## Current persistence boundary
+## Local records
 
-The Materia Medica dataset is connected and searchable. Patient and consultation screens remain presentation-ready until the team connects the separate secure operational database and authentication layer. Patient records should not be written into the read-only Materia Medica reference database.
+Patient and consultation records are stored locally in the browser's IndexedDB database. This keeps the standalone prototype independent from a hosting provider, but it is not a replacement for a secured, access-controlled clinical database. Do not treat the local prototype as production-ready storage for sensitive records.

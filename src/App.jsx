@@ -257,7 +257,7 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
   const [confirmedSymptoms, setConfirmedSymptoms] = useState(() => initialSymptoms.filter(Boolean));
   const [draft, setDraft] = useState("");
   const activeSegments = useMemo(() => [...confirmedSymptoms, ...(draft.trim().length >= 2 ? [draft.trim()] : [])], [confirmedSymptoms, draft]);
-  const { status, results, metadata, durationMs, error } = useRemedySearch(activeSegments, 10);
+  const { status, results, combinations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
   const addSymptom = () => {
     const value = draft.trim();
     if (value.length < 2 || confirmedSymptoms.some((item) => item.toLowerCase() === value.toLowerCase())) return;
@@ -273,18 +273,19 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
         <p className="finder-help">Results update while you type. Press Enter to confirm this symptom, then enter the next one.</p>
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
       </div>
-      <div className="results-header"><div><h2>{activeSegments.length ? "Matching remedies" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} remedies shown · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; you can add location, sensation, timing and modalities."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Updating results</span>}</div>
+      <div className="results-header"><div><h2>{activeSegments.length ? "Whole-case remedy ranking" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} evidence-qualified remedies · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; add location, sensation, timing and modalities as separate symptoms."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Recalculating whole case</span>}</div>
       {error && <div className="error-state"><Info size={18} /><span>{error}</span></div>}
       {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
       {activeSegments.length > 0 && status !== "loading" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
       <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedy?.id === remedy.id} querySegments={activeSegments} onSelect={() => onSelect(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: activeSegments })} />)}</div>
+      {activeSegments.length > 1 && status !== "loading" && <CoverageGroups combinations={combinations} segments={activeSegments} results={results} onEvidence={onEvidence} />}
     </div>
     <aside className="finder-summary">
       <div className="summary-block"><span className="summary-label">Symptoms in this search</span><strong>{activeSegments.length || 0}</strong><p>Remedies matching more of the confirmed symptoms are kept higher in the list.</p></div>
       <div className="summary-symptoms">{activeSegments.length ? activeSegments.map((symptom, index) => <div key={`${symptom}-${index}`}><span>{index + 1}</span><p>{symptom}</p>{index < confirmedSymptoms.length && <Check size={14} />}</div>) : <p className="empty-summary">No symptoms entered yet.</p>}</div>
       <div className="summary-divider" /><span className="summary-label">Current leader</span>
-      {results[0] ? <div className="leader-card"><div className="leader-rank">1</div><div><strong>{results[0].name}</strong><span>{results[0].scientific}</span></div><p>{results[0].matchedSegmentCount} of {results[0].totalSegmentCount} symptoms matched</p></div> : <p className="empty-summary">The leading remedy will appear here as you type.</p>}
+      {results[0] ? <div className="leader-card"><div className="leader-rank">1</div><div><strong>{results[0].name}</strong><span>{results[0].scientific}</span></div><p>{results[0].matchedSegmentCount} of {results[0].totalSegmentCount} symptoms matched · {results[0].alignmentPercent}% source alignment</p></div> : <p className="empty-summary">The leading remedy will appear here as you type.</p>}
       {selectedRemedy && <div className="selected-summary"><CheckCircle2 size={17} /><div><span>Selected for review</span><strong>{selectedRemedy.name}</strong></div></div>}
       <div className="source-key"><span className="summary-label">Source emphasis</span><div><i className="priority-dot p3" />High</div><div><i className="priority-dot p2" />Partial</div><div><i className="priority-dot p1" />Standard</div></div>
       <div className="summary-note"><ShieldCheck size={16} /><p>The doctor reviews the source wording and makes the final selection.</p></div>
@@ -302,12 +303,27 @@ function RemedyResult({ rank, remedy, selected, querySegments, onSelect, onEvide
   return <article className={`remedy-result ${selected ? "selected" : ""}`}>
     <div className="result-rank">{rank}</div>
     <div className="result-content">
-      <div className="result-title-row"><div><h3>{remedy.name}</h3><p>{remedy.scientific} · {remedy.code}</p></div><div className="result-badges"><span className="match-label">{remedy.label}</span><PriorityBadge priority={remedy.highestPriority} /></div></div>
+      <div className="result-title-row"><div><h3>{remedy.name}</h3><p>{remedy.scientific} · {remedy.code}</p></div><div className="result-badges"><span className="alignment-score">{remedy.alignmentPercent}% source alignment</span><span className="match-label">{remedy.label}</span><PriorityBadge priority={remedy.highestPriority} /></div></div>
       <div className="coverage-row"><div className="coverage-track"><span style={{ width: `${Math.round((remedy.matchedSegmentCount / remedy.totalSegmentCount) * 100)}%` }} /></div><strong>{remedy.matchedSegmentCount} of {remedy.totalSegmentCount} symptoms supported</strong></div>
+      <div className="segment-match-grid">{remedy.segmentMatches.map((match, index) => <div className={match.matched ? "matched" : "unmatched"} key={`${match.segment}-${index}`}>{match.matched ? <Check size={13} /> : <X size={13} />}<span>{index + 1}. {match.segment}</span>{match.matched && <b>{Math.round(match.score * 100)}%</b>}</div>)}</div>
       {primaryEvidence && <div className="source-preview"><div className="source-preview-head"><span>Best matching source symptom</span><button onClick={onEvidence}>Page {primaryEvidence.page} · View evidence</button></div><p><HighlightedText text={primaryEvidence.text} segments={querySegments} /></p></div>}
     </div>
     <div className="result-action"><button className={selected ? "selected-btn" : "secondary-btn"} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Selected</> : "Select remedy"}</button><button className="text-btn" onClick={onEvidence}><BookOpen size={15} /> Source details</button></div>
   </article>;
+}
+
+function CoverageGroups({ combinations, segments, results, onEvidence }) {
+  return <section className="coverage-groups">
+    <div className="coverage-groups-head"><div><span className="section-kicker">Multi-remedy source coverage</span><h3>When no single remedy covers the complete symptom set</h3><p>These groups identify complementary source matches for comparison. They are not instructions to prescribe the remedies together.</p></div><span className="comparison-badge">Comparison only</span></div>
+    {combinations.length ? <div className="coverage-group-list">{combinations.map((group, groupIndex) => <article className="coverage-group-card" key={group.id}>
+      <div className="coverage-group-rank">{groupIndex + 1}</div>
+      <div className="coverage-group-content"><div className="coverage-group-title"><strong>{group.coveredSegmentCount} of {group.totalSegmentCount} symptoms covered</strong><span>{group.members.length} source remedies</span></div>
+        <div className="coverage-members">{group.members.map((member) => { const result = results.find((item) => item.id === member.id) || member; return <button key={member.id} onClick={() => onEvidence({ ...result, querySegments: segments })}><b>{member.name}</b><span>{member.uniqueSegmentIndexes.length} unique contribution{member.uniqueSegmentIndexes.length === 1 ? "" : "s"}</span><ChevronRight size={14} /></button>; })}</div>
+        <div className="coverage-segments">{segments.map((segment, index) => <span className={group.coveredSegmentIndexes.includes(index) ? "covered" : "missing"} key={`${segment}-${index}`}>{group.coveredSegmentIndexes.includes(index) ? <Check size={12} /> : <X size={12} />}{index + 1}. {segment}</span>)}</div>
+      </div>
+    </article>)}</div> : <div className="coverage-groups-empty"><CheckCircle2 size={18} /><span>The leading individual remedies already cover as many entered symptoms as any multi-remedy group.</span></div>}
+    <div className="combination-warning"><ShieldCheck size={16} /><span>Review each remedy’s original source evidence separately. This feature does not assess interactions, safety, dosing, potency or clinical effectiveness.</span></div>
+  </section>;
 }
 
 function PriorityBadge({ priority }) {
@@ -329,7 +345,7 @@ function EvidenceModal({ remedy, onClose }) {
   return <div className="modal-backdrop" onClick={onClose}><div className="modal evidence-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Source evidence for ${remedy.name}`}>
     <div className="modal-head"><div><span className="eyebrow">Source evidence</span><h2>{remedy.name}</h2><p>{remedy.scientific} · {remedy.code}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close evidence"><X size={19} /></button></div>
     <div className="modal-coverage"><strong>{remedy.matchedSegmentCount} of {remedy.totalSegmentCount}</strong><span>entered symptoms have supporting source matches</span></div>
-    <div className="evidence-list">{remedy.evidence.map((evidence) => <article key={evidence.id}><div className="evidence-row-head"><span>For “{evidence.segment}”</span><div><PriorityBadge priority={evidence.priority} /><b>Page {evidence.page}</b></div></div><p><HighlightedText text={evidence.text} segments={remedy.querySegments || [evidence.segment]} /></p>{evidence.emphasizedText && <div className="bold-source"><strong>Bold in source</strong><span>{evidence.emphasizedText.replaceAll("|", " ")}</span></div>}</article>)}</div>
+    <div className="evidence-list">{remedy.evidence.map((evidence) => <article key={`${evidence.id}-${evidence.segmentIndex}`}><div className="evidence-row-head"><span>For “{evidence.segment}”</span><div><span className="evidence-score">{Math.round(evidence.matchScore * 100)}% text alignment</span><PriorityBadge priority={evidence.priority} /><b>Page {evidence.page}</b></div></div><p><HighlightedText text={evidence.text} segments={remedy.querySegments || [evidence.segment]} /></p>{evidence.emphasizedText && <div className="bold-source"><strong>Bold in source</strong><span>{evidence.emphasizedText.replaceAll("|", " ")}</span></div>}</article>)}</div>
     <div className="evidence-disclaimer"><ShieldCheck size={17} /><span>Source emphasis is a retrieval signal only. It is not diagnostic certainty or a treatment recommendation.</span></div>
     <div className="modal-actions"><button className="secondary-btn" onClick={onClose}>Close</button></div>
   </div></div>;
