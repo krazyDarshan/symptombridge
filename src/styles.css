@@ -1,13 +1,13 @@
 :root {
   font-family: "Aptos", "Segoe UI", system-ui, -apple-system, sans-serif;
   color: #322a2d;
-  background: #ded0ca;
+  background: #ece3df;
   font-synthesis: none;
   --ink: #322a2d;
   --ink-soft: #51474a;
   --muted: #716164;
   --muted-2: #a08b8d;
-  --canvas: #ded0ca;
+  --canvas: #ece3df;
   --canvas-deep: #b99491;
   --paper: #fbf7f0;
   --paper-soft: #f3eadf;
@@ -32,10 +32,10 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 9% 8%, rgba(207, 158, 169, 0.344) 0, rgba(207, 158, 169, 0) 30rem),
-    radial-gradient(circle at 92% 15%, rgba(128, 81, 102, 0.213) 0, rgba(128, 81, 102, 0) 34rem),
-    repeating-linear-gradient(135deg, rgba(245, 240, 231, 0.08) 0, rgba(245, 240, 231, 0.08) 1px, transparent 1px, transparent 31px),
-    var(--canvas);
+    radial-gradient(circle at 6% 2%, rgba(196, 144, 157, 0.3) 0, rgba(196, 144, 157, 0) 34rem),
+    radial-gradient(circle at 94% 6%, rgba(226, 198, 147, 0.32) 0, rgba(226, 198, 147, 0) 38rem),
+    linear-gradient(140deg, #eee6e2 0%, #e7dadd 52%, #f2e9dc 100%);
+  background-attachment: fixed;
 }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
