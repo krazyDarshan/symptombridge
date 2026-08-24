@@ -1,0 +1,10 @@
+{
+  "datasetVersion": "1.0.0",
+  "sourceFile": "Materia-Medica-Pura.pdf",
+  "sourcePageCount": 1183,
+  "sectionCount": 74,
+  "preparationCount": 77,
+  "symptomCount": 32031,
+  "emphasisSpanCount": 2673,
+  "clinicalUseNote": "Source-format priority supports retrieval and comparison. It is not a diagnosis, treatment recommendation or effectiveness estimate."
+}
