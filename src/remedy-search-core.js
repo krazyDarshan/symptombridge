@@ -22,10 +22,15 @@ const SYNONYM_GROUPS = [
   ["constipated", "constipation", "costiveness"],
   ["cough", "coughing"],
   ["cramp", "cramping", "cramplike", "spasm", "spasmodic"],
+  ["diarrhea", "diarrhoea", "loose", "looseness"],
+  ["difficult", "difficulty", "hard"],
   ["dizzy", "dizziness", "giddy", "giddiness", "vertigo"],
+  ["edema", "oedema", "swelling", "swollen", "tumefaction"],
   ["evening", "evenings"],
   ["fever", "feverish", "heat"],
   ["headache", "cephalalgia"],
+  ["hoarse", "hoarseness", "roughness"],
+  ["inflamed", "inflammation", "irritated", "irritation"],
   ["itch", "itching", "itchy", "pruritus"],
   ["menstruation", "menses", "menstrual", "period"],
   ["morning", "mornings", "forenoon"],
@@ -36,11 +41,12 @@ const SYNONYM_GROUPS = [
   ["pressure", "pressive", "pressing"],
   ["restless", "restlessness", "uneasy"],
   ["shooting", "stabbing", "stitch", "stitches", "stitching"],
+  ["sneeze", "sneezing", "sternutation"],
   ["sleepiness", "sleepy", "drowsiness", "drowsy"],
   ["sleepless", "sleeplessness", "insomnia", "wakefulness"],
   ["stomach", "gastric", "epigastric"],
   ["stool", "bowel", "bowels", "evacuation"],
-  ["swelling", "swollen", "tumefaction"],
+  ["swallow", "swallowing", "deglutition", "dysphagia"],
   ["thirst", "thirsty"],
   ["tired", "tiredness", "fatigue", "weak", "weakness", "weariness"],
   ["urinate", "urination", "urine", "urinary"],
@@ -50,23 +56,26 @@ const SYNONYM_GROUPS = [
 const BODY_LOCATION_TERMS = [
   "abdomen", "ankle", "arm", "back", "bladder", "bowel", "brain", "breast",
   "chest", "ear", "eye", "eyelid", "face", "finger", "foot", "forehead",
-  "gum", "hand", "head", "heart", "heel", "hip", "jaw", "knee", "leg",
+  "gum", "hand", "head", "heart", "heel", "hip", "jaw", "kidney", "knee", "leg",
   "lip", "liver", "lung", "mouth", "neck", "nose", "ovary", "rectum",
   "rib", "shoulder", "skin", "stomach", "throat", "thumb", "tongue",
-  "tooth", "uterus", "wrist",
+  "tooth", "urethra", "uterus", "vagina", "wrist",
 ];
 
 const CONCEPT_HEAD_TERMS = [
   "anxiety", "bleeding", "burning", "chill", "constipation", "cough", "cramp",
-  "diarrhoea", "dizziness", "fever", "headache", "itching", "nausea", "numbness",
-  "pain", "rash", "restlessness", "sadness", "sleeplessness", "stiffness",
-  "swelling", "thirst", "trembling", "urination", "vertigo", "vomiting", "weakness",
+  "ache", "diarrhoea", "discharge", "dizziness", "eruption", "fever", "headache",
+  "hoarseness", "inflammation", "itching", "nausea", "numbness", "pain", "palpitation",
+  "perspiration", "rash", "restlessness", "sadness", "sleeplessness", "sneezing",
+  "soreness", "stiffness", "swelling", "thirst", "trembling", "urination", "vertigo",
+  "vomiting", "weakness",
 ];
 
 const COMMON_CLINICAL_TERMS = [
   "aggravated", "ameliorated", "better", "bloody", "dry", "frequent", "hard",
   "left", "morning", "movement", "night", "painful", "right", "severe", "sharp",
-  "shooting", "stitching", "throbbing", "worse",
+  "shooting", "stitching", "throbbing", "worse", "after", "before", "during",
+  "standing", "sitting", "lying", "touch", "pressure", "eating", "drinking",
 ];
 
 function normalize(value) {
@@ -98,6 +107,8 @@ function tokenize(value, keepStopWords = false) {
 
 const BODY_LOCATION_STEMS = new Set(BODY_LOCATION_TERMS.map(stem));
 const CONCEPT_HEAD_STEMS = new Set(CONCEPT_HEAD_TERMS.map(stem));
+const CONCEPT_MODIFIER_STEMS = new Set(COMMON_CLINICAL_TERMS.map(stem));
+const LATERALITY_STEMS = new Set(["left", "right"]);
 const CORRECTION_VOCABULARY = [...new Set([
   ...SYNONYM_GROUPS.flat(),
   ...BODY_LOCATION_TERMS,
@@ -132,12 +143,20 @@ function editDistanceWithin(left, right, maximum) {
   return previous[right.length];
 }
 
-function correctToken(token, wordFrequency) {
+function correctionCandidates(token, correctionIndex) {
+  const maximum = token.length >= 7 ? 2 : 1;
+  const candidates = [];
+  for (let length = token.length - maximum; length <= token.length + maximum; length += 1) {
+    for (const candidate of correctionIndex.get(`${token[0]}:${length}`) || []) candidates.push(candidate);
+  }
+  return { candidates, maximum };
+}
+
+function correctToken(token, wordFrequency, correctionIndex) {
   if (token.length < 5 || wordFrequency.has(token) || SYNONYMS.has(stem(token))) return token;
-  const maximum = token.length >= 6 ? 2 : 1;
+  const { candidates, maximum } = correctionCandidates(token, correctionIndex);
   let best = null;
-  for (const candidate of CORRECTION_VOCABULARY) {
-    if (candidate[0] !== token[0] || Math.abs(candidate.length - token.length) > maximum) continue;
+  for (const candidate of candidates) {
     const distance = editDistanceWithin(token, candidate, maximum);
     if (distance > maximum) continue;
     const frequency = wordFrequency.get(candidate) || 0;
@@ -147,9 +166,9 @@ function correctToken(token, wordFrequency) {
   return best ? best.candidate : token;
 }
 
-function interpretSegment(segment, wordFrequency) {
+function interpretSegment(segment, wordFrequency, correctionIndex) {
   const originalTokens = tokenize(segment);
-  const correctedTokens = originalTokens.map((token) => correctToken(token, wordFrequency));
+  const correctedTokens = originalTokens.map((token) => correctToken(token, wordFrequency, correctionIndex));
   const corrections = originalTokens
     .map((token, index) => token === correctedTokens[index] ? null : ({ from: token, to: correctedTokens[index] }))
     .filter(Boolean);
@@ -175,6 +194,10 @@ function interpretSegment(segment, wordFrequency) {
       if (nearestBodyIndex !== undefined) {
         included.add(nearestBodyIndex);
         sideIndexes.filter((index) => Math.abs(index - nearestBodyIndex) <= 2).forEach((index) => included.add(index));
+      }
+      for (let index = Math.max(0, headIndex - 2); index <= Math.min(correctedTokens.length - 1, headIndex + 3); index += 1) {
+        const tokenStem = stem(correctedTokens[index]);
+        if (CONCEPT_MODIFIER_STEMS.has(tokenStem) && !CONCEPT_HEAD_STEMS.has(tokenStem)) included.add(index);
       }
       const previousIndex = headIndex - 1;
       if (previousIndex >= 0 && !CONCEPT_HEAD_STEMS.has(stem(correctedTokens[previousIndex])) && !BODY_LOCATION_STEMS.has(stem(correctedTokens[previousIndex]))) included.add(previousIndex);
@@ -249,6 +272,8 @@ function buildQuery(segment, documentFrequency, symptomCount) {
     tokens,
     weightedTokens,
     bigrams: bigrams(tokenize(segment, true)),
+    bodyTokens: tokens.filter((token) => BODY_LOCATION_STEMS.has(stem(token))),
+    lateralityTokens: tokens.filter((token) => LATERALITY_STEMS.has(stem(token))),
   };
 }
 
@@ -270,6 +295,11 @@ function scoreSourceSymptom(symptom, query, segmentIndex) {
     emphasisWeight += item.weight * emphasisMatch.strength;
   }
 
+  if (query.bodyTokens.length && !query.bodyTokens.some((token) => tokenStrength(symptom, token).strength >= 0.72)) return null;
+  const querySide = query.lateralityTokens[0];
+  const sourceSides = symptom.tokens.filter((token) => LATERALITY_STEMS.has(stem(token)));
+  if (querySide && sourceSides.length && !sourceSides.includes(querySide)) return null;
+
   const exactPhrase = query.normalized.length >= 5 && symptom.normalized.includes(query.normalized) ? 1 : 0;
   const requiredTokens = query.tokens.length === 1 ? 1 : Math.min(2, query.tokens.length);
   if (!exactPhrase && matchedTokenCount < requiredTokens) return null;
@@ -284,14 +314,16 @@ function scoreSourceSymptom(symptom, query, segmentIndex) {
   const exactCoverage = totalWeight ? exactWeight / totalWeight : 0;
   const emphasisCoverage = totalWeight ? Math.min(1, emphasisWeight / totalWeight) : 0;
   const priorityScore = Math.max(0, Math.min(1, (symptom.priority - 1) / 2));
+  const lateralityScore = querySide ? (sourceSides.includes(querySide) ? 1 : 0.35) : 0;
 
   const score = Math.min(1,
-    weightedCoverage * 0.55 +
+    weightedCoverage * 0.51 +
     exactCoverage * 0.09 +
     exactPhrase * 0.14 +
     bigramCoverage * 0.08 +
-    emphasisCoverage * 0.08 +
-    priorityScore * 0.06,
+    emphasisCoverage * 0.09 +
+    priorityScore * 0.07 +
+    lateralityScore * 0.02,
   );
 
   return {
@@ -385,8 +417,8 @@ function combinationCandidates(results, totalSegments) {
     .slice(0, 3);
 }
 
-const STRONG_SEGMENT_SCORE = 0.58;
-const MODERATE_SEGMENT_SCORE = 0.44;
+const STRONG_SEGMENT_SCORE = 0.62;
+const SUPPORTED_SEGMENT_SCORE = 0.48;
 
 function recommendReviewSet(results, totalSegments) {
   if (!results.length || totalSegments < 1) return null;
@@ -404,18 +436,20 @@ function recommendReviewSet(results, totalSegments) {
       segmentIndex,
       segment: members[0]?.segmentMatches[segmentIndex]?.segment || "",
       ...ranked[0],
+      supported: ranked[0].score >= SUPPORTED_SEGMENT_SCORE,
+      strong: ranked[0].score >= STRONG_SEGMENT_SCORE,
     };
   });
 
   const describe = (members) => {
     const assignments = assignmentsFor(members);
     const bestScores = assignments.map((assignment) => assignment.score);
-    const coveredSegmentCount = bestScores.filter((score) => score >= MODERATE_SEGMENT_SCORE).length;
+    const coveredSegmentCount = bestScores.filter((score) => score >= SUPPORTED_SEGMENT_SCORE).length;
     const strongCoveredSegmentCount = bestScores.filter((score) => score >= STRONG_SEGMENT_SCORE).length;
     const averageBestScore = bestScores.reduce((total, score) => total + score, 0) / totalSegments;
     const weakestBestScore = Math.min(...bestScores);
     const averageAlignment = members.reduce((total, member) => total + member.score, 0) / members.length;
-    const contributingIds = new Set(assignments.filter((assignment) => assignment.score >= MODERATE_SEGMENT_SCORE).map((assignment) => assignment.remedyId));
+    const contributingIds = new Set(assignments.filter((assignment) => assignment.supported).map((assignment) => assignment.remedyId));
     const allMembersContribute = members.every((member) => contributingIds.has(member.id));
     const fullCoverage = coveredSegmentCount === totalSegments;
     const quality =
@@ -438,24 +472,26 @@ function recommendReviewSet(results, totalSegments) {
   };
 
   const topSingle = describe([results[0]]);
-  const singleIsStrong = topSingle.fullCoverage &&
-    topSingle.weakestBestScore >= STRONG_SEGMENT_SCORE &&
-    topSingle.averageBestScore >= 0.64 &&
-    results[0].alignmentPercent >= 68;
+  const singleIsSufficient = topSingle.fullCoverage &&
+    topSingle.weakestBestScore >= SUPPORTED_SEGMENT_SCORE &&
+    topSingle.averageBestScore >= 0.58 &&
+    results[0].alignmentPercent >= 65;
 
-  if (totalSegments === 1 || singleIsStrong) {
+  if (totalSegments === 1 || singleIsSufficient) {
     const strong = topSingle.strongCoveredSegmentCount === totalSegments;
     return {
-      mode: strong ? "single" : "insufficient",
+      mode: totalSegments === 1 && !topSingle.fullCoverage ? "insufficient" : "single",
       remedyIds: [results[0].id],
       count: 1,
       coveredSegmentCount: topSingle.coveredSegmentCount,
       strongCoveredSegmentCount: topSingle.strongCoveredSegmentCount,
       totalSegmentCount: totalSegments,
-      confidenceLabel: strong ? "Strong source coverage" : "Partial source coverage",
+      confidenceLabel: strong ? "Strong source coverage" : topSingle.fullCoverage ? "Complete source coverage" : "Partial source coverage",
       reason: strong
         ? "One remedy has strong source support across every interpreted symptom concept."
-        : "This is the closest source match, but the entered symptom does not yet have strong source coverage.",
+        : topSingle.fullCoverage
+          ? "One remedy provides the smallest supported source-review set across every interpreted symptom concept."
+          : "This is the closest source match, but the entered symptom does not yet have strong source coverage.",
       assignments: topSingle.assignments,
     };
   }
@@ -566,12 +602,28 @@ export function createRemedySearchEngine(payload) {
     });
   });
 
+  const correctionIndex = new Map();
+  const correctionVocabulary = [...new Set([
+    ...CORRECTION_VOCABULARY,
+    ...[...wordFrequency.entries()].filter(([, frequency]) => frequency >= 3).map(([token]) => token),
+  ])];
+  for (const token of correctionVocabulary) {
+    if (token.length < 4) continue;
+    const key = `${token[0]}:${token.length}`;
+    correctionIndex.set(key, [...(correctionIndex.get(key) || []), token]);
+  }
+
   function search(segments, limit = 14) {
-    const inputInterpretations = segments.map((segment) => interpretSegment(segment, wordFrequency));
+    const inputInterpretations = segments.map((segment) => interpretSegment(segment, wordFrequency, correctionIndex));
+    const seenQueries = new Set();
     const queries = inputInterpretations
       .flatMap((interpretation) => interpretation.concepts)
       .map((segment) => buildQuery(segment, documentFrequency, symptoms.length))
-      .filter((query) => query.tokens.length > 0);
+      .filter((query) => {
+        if (!query.tokens.length || seenQueries.has(query.normalized)) return false;
+        seenQueries.add(query.normalized);
+        return true;
+      });
     if (!queries.length) return { results: [], combinations: [], recommendation: null, interpretedSegments: [], inputInterpretations };
 
     const bestBySegment = queries.map(() => new Map());
@@ -586,8 +638,11 @@ export function createRemedySearchEngine(payload) {
 
     const allResults = preparations.map((preparation, remedyIndex) => {
       const segmentMatches = bestBySegment.map((matches) => matches.get(remedyIndex) || null);
-      const matchedSegmentIndexes = segmentMatches.map((match, index) => match ? index : -1).filter((index) => index >= 0);
-      if (!matchedSegmentIndexes.length) return null;
+      const retrievedSegmentIndexes = segmentMatches.map((match, index) => match ? index : -1).filter((index) => index >= 0);
+      if (!retrievedSegmentIndexes.length) return null;
+      const matchedSegmentIndexes = segmentMatches
+        .map((match, index) => match?.score >= SUPPORTED_SEGMENT_SCORE ? index : -1)
+        .filter((index) => index >= 0);
 
       const matchedSegmentCount = matchedSegmentIndexes.length;
       const wholeCaseCoverage = matchedSegmentCount / queries.length;
@@ -614,7 +669,8 @@ export function createRemedySearchEngine(payload) {
         totalSegmentCount: queries.length,
         segmentMatches: segmentMatches.map((match, index) => ({
           segment: queries[index].original,
-          matched: Boolean(match),
+          matched: Boolean(match && match.score >= SUPPORTED_SEGMENT_SCORE),
+          retrieved: Boolean(match),
           score: match?.score || 0,
         })),
         evidence,

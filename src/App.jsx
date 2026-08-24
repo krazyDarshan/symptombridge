@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
-  ArrowLeft, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
+  ArrowLeft, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
   CircleHelp, ClipboardList, Database, FileSearch, HeartPulse, Home, Info,
-  LogOut, Menu, Plus, Search, Settings, ShieldCheck, Stethoscope, UserPlus, Users, X,
+  Menu, Plus, Search, Settings, ShieldCheck, Stethoscope, UserPlus, Users, X,
 } from "lucide-react";
 import { useRemedySearch } from "./useRemedySearch";
 import { useClinicalRecords } from "./useClinicalRecords";
@@ -50,7 +50,6 @@ function App() {
         <div className="nav-label secondary-label">Workspace</div>
         <nav className="nav-list">
           <SideLink to="/settings" icon={<Settings size={18} />} label="Preferences" />
-          <button className="nav-item nav-button" onClick={() => showToast("Sign-out will be connected with practitioner authentication.")}><LogOut size={18} /><span>Sign out</span></button>
         </nav>
         <div className="sidebar-footer">
           <div className="secure-badge"><ShieldCheck size={15} /><span>Clinical reference only</span></div>
@@ -65,7 +64,6 @@ function App() {
           <button className="icon-btn mobile-menu" onClick={() => setSidebarOpen(true)} aria-label="Open menu"><Menu size={20} /></button>
           <div className="breadcrumbs"><span>Casebook index</span><ChevronRight size={13} /><strong>{pageTitle(location.pathname)}</strong></div>
           <div className="top-actions">
-            <button className="icon-btn" aria-label="Notifications"><Bell size={18} /></button>
             <div className="profile"><div className="avatar">DR</div><div className="profile-text"><strong>Practitioner</strong><span>Casebook desk</span></div></div>
           </div>
         </header>
@@ -198,11 +196,11 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
     setSymptoms((current) => [...current, value]); setSymptomDraft("");
   };
   const continueFlow = () => {
-    if (step === 2 && symptoms.length === 0 && description.trim().length < 3) { showToast("Add at least one symptom before continuing."); return; }
+    if (step === 2 && symptoms.length === 0) { showToast("Confirm at least one distinct symptom before continuing."); return; }
     if (step === 3 && selectedRemedies.length === 0) { showToast("Keep at least one remedy in the review set after checking its source evidence."); return; }
     setStep((current) => Math.min(4, current + 1));
   };
-  const searchSymptoms = symptoms.length > 0 ? symptoms : [description.trim()].filter(Boolean);
+  const searchSymptoms = symptoms;
 
   const completeConsultation = async () => {
     if (!patient || selectedRemedies.length === 0 || saving) return;
@@ -236,7 +234,7 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
   return <div>
     <PageHeader eyebrow="New consultation" title={patient.name} description="Capture symptoms, compare source-linked remedies, and record the practitioner’s selection." />
     <div className="stepper">{["Patient", "Symptoms", "Remedy review", "Decision"].map((label, index) => <div className={`step ${step === index + 1 ? "current" : step > index + 1 ? "done" : ""}`} key={label}><div className="step-circle">{step > index + 1 ? <Check size={15} /> : index + 1}</div><span>{label}</span></div>)}</div>
-    {step === 1 && <section className="panel consultation-panel"><SectionTitle number="01" title="Select the patient" text="The consultation and final remedy selection will remain connected to this record." /><label htmlFor="consultation-patient">Patient</label><select id="consultation-patient" value={patientId} onChange={(event) => setPatientId(event.target.value)}>{patients.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id}</option>)}</select><div className="selected-patient"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom}</span></div><span className="status">{patient.status}</span></div><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
+    {step === 1 && <section className="panel consultation-panel"><SectionTitle number="01" title="Select the patient" text="The consultation and final remedy selection will remain connected to this record." /><label htmlFor="consultation-patient">Patient</label><select id="consultation-patient" value={patientId} onChange={(event) => setPatientId(event.target.value)}>{patients.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id}</option>)}</select><div className="selected-patient"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom || "No previous concern recorded"}</span></div><span className="status">{patient.status}</span></div><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
     {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Enter one confirmed symptom" /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
     {step === 3 && <div><RemedyFinder key={searchSymptoms.join("|")} initialSymptoms={searchSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={setSelectedRemedies} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedies.length ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong> in the review set</span></> : <span>Review the automatically suggested set and its source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
     {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, retained source-review set, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Review set</span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Review rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this source-review set was retained after checking the matched symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
@@ -306,7 +304,7 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
         {hasExpandedInterpretation && <div className="query-interpretation"><Info size={15} /><div><strong>Interpreted clinical concepts</strong><div>{effectiveSegments.map((segment, index) => <span key={`${segment}-${index}`}>{segment}</span>)}</div>{corrections.length > 0 && <p>{corrections.map((correction) => `“${correction.from}” → “${correction.to}”`).join(" · ")}</p>}</div></div>}
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
       </div>
-      <div className="results-header"><div><h2>{activeSegments.length ? "Whole-case remedy ranking" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} evidence-qualified remedies across ${effectiveSegments.length} interpreted concept${effectiveSegments.length === 1 ? "" : "s"} · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; add location, sensation, timing and modalities as separate symptoms."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Recalculating whole case</span>}</div>
+      <div className="results-header"><div><h2>{activeSegments.length ? "Whole-case remedy ranking" : "Start with the first symptom"}</h2><p>{activeSegments.length ? `${results.length} source-linked candidates across ${effectiveSegments.length} interpreted concept${effectiveSegments.length === 1 ? "" : "s"} · ${status === "searching" ? "updating" : `searched in ${durationMs} ms`}` : "Use the patient’s wording; add location, sensation, timing and modalities as separate symptoms."}</p></div>{status === "searching" && <span className="searching-indicator"><span />Recalculating whole case</span>}</div>
       {error && <div className="error-state"><Info size={18} /><span>{error}</span></div>}
       {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
@@ -334,7 +332,6 @@ function SymptomChips({ symptoms, onRemove, emptyText }) {
 
 function AutomaticReviewSet({ recommendation, results, segments, selectedRemedies, onEvidence }) {
   const remedies = recommendation.remedyIds.map((id) => results.find((remedy) => remedy.id === id)).filter(Boolean);
-  const allSelected = remedies.length > 0 && remedies.every((remedy) => selectedRemedies.some((item) => item.id === remedy.id));
   const heading = recommendation.mode === "single"
     ? "One remedy is sufficient for source review"
     : recommendation.mode === "group"
@@ -349,15 +346,15 @@ function AutomaticReviewSet({ recommendation, results, segments, selectedRemedie
     <p className="auto-review-reason">{recommendation.reason}</p>
     <div className="auto-review-remedies">{remedies.map((remedy) => <button key={remedy.id} onClick={() => onEvidence({ ...remedy, querySegments: segments })}>
       <span><b>{remedy.name}</b><small>{remedy.scientific}</small></span>
-      <i>{allSelected ? "In review set" : "Suggested"}</i>
+      <i>{selectedRemedies.some((item) => item.id === remedy.id) ? "In review set" : "Suggested"}</i>
       <ChevronRight size={15} />
     </button>)}</div>
     <div className="auto-review-coverage">
       <div className="auto-review-coverage-head"><strong>{recommendation.coveredSegmentCount} of {recommendation.totalSegmentCount} concepts covered</strong><span>{recommendation.confidenceLabel}</span></div>
-      <div>{recommendation.assignments.map((assignment) => <span className={assignment.score >= 0.44 ? "covered" : "missing"} key={`${assignment.segmentIndex}-${assignment.remedyId}`}>
-        {assignment.score >= 0.44 ? <Check size={12} /> : <X size={12} />}
+      <div>{recommendation.assignments.map((assignment) => <span className={assignment.supported ? "covered" : "missing"} key={`${assignment.segmentIndex}-${assignment.remedyId}`}>
+        {assignment.supported ? <Check size={12} /> : <X size={12} />}
         <b>{assignment.segment}</b>
-        <small>{assignment.score >= 0.44 ? `${assignment.remedyName} · ${Math.round(assignment.score * 100)}%` : "Refine this symptom"}</small>
+        <small>{assignment.supported ? `${assignment.remedyName} · ${Math.round(assignment.score * 100)}%` : "Refine this symptom"}</small>
       </span>)}</div>
     </div>
     <div className="auto-review-warning"><ShieldCheck size={16} /><span>This set is selected automatically for source comparison. It is not a prescription, combination, dosing or potency recommendation.</span></div>
@@ -465,10 +462,10 @@ function Cases({ cases, recordsStatus }) {
 }
 
 function SettingsPage() {
-  return <div><PageHeader eyebrow="Workspace" title="Preferences" description="Control how source evidence is presented during remedy review." /><section className="panel settings-panel"><SettingRow icon={<BookOpen size={18} />} title="Original source wording" text="Always show the preserved symptom text and PDF page." /><SettingRow icon={<Database size={18} />} title="Source emphasis" text="Show normal, partial and high-emphasis indicators from the PDF." /><SettingRow icon={<CalendarDays size={18} />} title="Consultation continuity" text="Keep the selected remedy and reviewed evidence connected to the case." /></section></div>;
+  return <div><PageHeader eyebrow="Workspace standards" title="Reference safeguards" description="These evidence and continuity rules remain active throughout the casebook." /><section className="panel settings-panel"><SettingRow icon={<BookOpen size={18} />} title="Original source wording" text="The preserved symptom text and PDF page remain visible for verification." /><SettingRow icon={<Database size={18} />} title="Source emphasis" text="Normal, partial and high-emphasis indicators remain distinct from match confidence." /><SettingRow icon={<CalendarDays size={18} />} title="Consultation continuity" text="Symptoms, reviewed remedies and the practitioner’s decision remain connected to the case." /></section></div>;
 }
 
-function SettingRow({ icon, title, text }) { return <div className="setting-row"><div className="setting-icon">{icon}</div><div><strong>{title}</strong><span>{text}</span></div><div className="toggle on" aria-label={`${title} enabled`}><div /></div></div>; }
+function SettingRow({ icon, title, text }) { return <div className="setting-row"><div className="setting-icon">{icon}</div><div><strong>{title}</strong><span>{text}</span></div><div className="setting-status"><CheckCircle2 size={14} /> Always active</div></div>; }
 function initials(name) { return name.split(" ").map((part) => part[0]).join("").slice(0, 2); }
 
 export default App;

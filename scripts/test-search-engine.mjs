@@ -14,7 +14,8 @@ assert.equal(reportedQuery.results[0].totalSegmentCount, 3);
 assert.equal(reportedQuery.results.some((remedy) => remedy.evidence.some((evidence) => /without (?:vomiting or )?cough/i.test(evidence.text))), false);
 assert.equal(reportedQuery.recommendation.mode, "single");
 assert.deepEqual(reportedQuery.recommendation.remedyIds, [reportedQuery.results[0].id]);
-assert.equal(reportedQuery.recommendation.strongCoveredSegmentCount, 3);
+assert.equal(reportedQuery.recommendation.coveredSegmentCount, 3);
+assert.ok(reportedQuery.recommendation.assignments.every((assignment) => assignment.supported));
 
 const earQuery = engine.search(["ear pain"], 5);
 assert.ok(earQuery.results.length > 0);
@@ -37,5 +38,29 @@ assert.equal(coverageQuery.recommendation.coveredSegmentCount, coverageQuery.rec
 
 const emptyQuery = coverageEngine.search([], 10);
 assert.equal(emptyQuery.recommendation, null);
+
+const locationEngine = createRemedySearchEngine({
+  preparations: [
+    { id: "LEFT", code: "left", name: "Left remedy", scientific: "Left", symptoms: [["l1", 1, "Severe shooting pain in the left ear", "", 1, 1]] },
+    { id: "RIGHT", code: "right", name: "Right remedy", scientific: "Right", symptoms: [["r1", 1, "Severe shooting pain in the right ear", "", 3, 1]] },
+    { id: "OTHER", code: "other", name: "Other remedy", scientific: "Other", symptoms: [["o1", 1, "Severe shooting pain in the left knee", "", 3, 1]] },
+  ],
+});
+const leftEar = locationEngine.search(["left ear pain"], 10);
+assert.equal(leftEar.results[0].id, "LEFT");
+assert.equal(leftEar.results.some((remedy) => remedy.id === "RIGHT"), false);
+assert.equal(leftEar.results.some((remedy) => remedy.id === "OTHER"), false);
+
+const priorityEngine = createRemedySearchEngine({
+  preparations: [
+    { id: "NORMAL", code: "normal", name: "Normal source", scientific: "Normal", symptoms: [["n1", 1, "Dry cough at night", "", 1, 1]] },
+    { id: "BOLD", code: "bold", name: "Bold source", scientific: "Bold", symptoms: [["b1", 1, "Dry cough at night", "Dry cough at night", 3, 1]] },
+  ],
+});
+const priorityQuery = priorityEngine.search(["dry cough at night"], 10);
+assert.equal(priorityQuery.results[0].id, "BOLD");
+
+const duplicateQuery = engine.search(["itching throat", "itching throat"], 10);
+assert.equal(duplicateQuery.interpretedSegments.length, 1);
 
 console.log("Search engine checks passed.");
