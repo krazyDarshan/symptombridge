@@ -107,8 +107,19 @@ export function useClinicalRecords() {
   const saveCase = useCallback(async (details) => {
     const patientRows = await getAll("patients");
     const patient = patientRows.find((item) => item.id === details.patientId);
+    const suppliedRemedies = Array.isArray(details.remedies) && details.remedies.length
+      ? details.remedies
+      : details.remedy ? [details.remedy] : [];
     if (!patient) throw new Error("The selected patient no longer exists.");
-    if (!Array.isArray(details.symptoms) || !details.symptoms.length || !details.remedy?.id) throw new Error("Patient, symptoms and a source remedy are required.");
+    if (!Array.isArray(details.symptoms) || !details.symptoms.length || !suppliedRemedies.every((remedy) => remedy?.id) || suppliedRemedies.length === 0) throw new Error("Patient, symptoms and at least one source remedy are required.");
+
+    const remedies = suppliedRemedies.slice(0, 3).map((remedy) => ({
+      id: String(remedy.id),
+      code: String(remedy.code),
+      name: String(remedy.name),
+      scientific: String(remedy.scientific || ""),
+    }));
+    const primaryRemedy = remedies[0];
 
     const createdAt = new Date().toISOString();
     const record = {
@@ -118,10 +129,11 @@ export function useClinicalRecords() {
       createdAt,
       description: String(details.description || ""),
       symptoms: details.symptoms.map((item) => String(item).trim()).filter(Boolean),
-      remedyId: String(details.remedy.id),
-      remedyCode: String(details.remedy.code),
-      remedyName: String(details.remedy.name),
-      remedyScientific: String(details.remedy.scientific || ""),
+      remedies,
+      remedyId: primaryRemedy.id,
+      remedyCode: primaryRemedy.code,
+      remedyName: primaryRemedy.name,
+      remedyScientific: primaryRemedy.scientific,
       rationale: String(details.rationale || ""),
       datasetVersion: String(details.datasetVersion || "1.0.0"),
     };

@@ -12,6 +12,9 @@ assert.ok(reportedQuery.results.length > 0);
 assert.equal(reportedQuery.results[0].matchedSegmentCount, 3);
 assert.equal(reportedQuery.results[0].totalSegmentCount, 3);
 assert.equal(reportedQuery.results.some((remedy) => remedy.evidence.some((evidence) => /without (?:vomiting or )?cough/i.test(evidence.text))), false);
+assert.equal(reportedQuery.recommendation.mode, "single");
+assert.deepEqual(reportedQuery.recommendation.remedyIds, [reportedQuery.results[0].id]);
+assert.equal(reportedQuery.recommendation.strongCoveredSegmentCount, 3);
 
 const earQuery = engine.search(["ear pain"], 5);
 assert.ok(earQuery.results.length > 0);
@@ -27,5 +30,12 @@ const coverageEngine = createRemedySearchEngine({
 const coverageQuery = coverageEngine.search(["left ear pain", "frequent urination", "itching rash on hands"], 10);
 assert.ok(coverageQuery.combinations.length > 0);
 assert.equal(coverageQuery.combinations[0].coveredSegmentCount, coverageQuery.combinations[0].totalSegmentCount);
+assert.equal(coverageQuery.recommendation.mode, "group");
+assert.equal(coverageQuery.recommendation.count, 2);
+assert.deepEqual(new Set(coverageQuery.recommendation.remedyIds), new Set(["A", "B"]));
+assert.equal(coverageQuery.recommendation.coveredSegmentCount, coverageQuery.recommendation.totalSegmentCount);
+
+const emptyQuery = coverageEngine.search([], 10);
+assert.equal(emptyQuery.recommendation, null);
 
 console.log("Search engine checks passed.");

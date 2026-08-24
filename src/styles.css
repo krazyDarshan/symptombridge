@@ -234,6 +234,36 @@ tbody tr:hover { background: #f8faf8; }
 .example-list button { padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 7px; color: #536a61; background: #fff; font-size: 8px; }
 .example-list button:hover { color: var(--forest); border-color: #9fb7aa; }
 .error-state { display: flex; align-items: center; gap: 8px; padding: 12px; border: 1px solid #ebc9c3; border-radius: 9px; color: #874a42; background: #fcf1ef; font-size: 9px; }
+.auto-review-panel { margin-bottom: 12px; overflow: hidden; border: 1px solid #9dc9c5; border-radius: 13px; background: linear-gradient(145deg, #f0f8f7 0%, #f8fbfd 72%); box-shadow: 0 10px 27px rgba(28, 72, 78, 0.07); }
+.auto-review-panel.insufficient { border-color: #dfc79f; background: linear-gradient(145deg, #fff9ef 0%, #fbfcfd 72%); }
+.auto-review-head { display: grid; grid-template-columns: 36px 1fr auto; align-items: center; gap: 11px; padding: 15px 16px 10px; }
+.auto-review-icon { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: var(--forest); }
+.auto-review-panel.insufficient .auto-review-icon { background: var(--amber); }
+.auto-review-head h3 { margin: 5px 0 0; color: var(--ink); font-size: 14px; letter-spacing: -0.15px; }
+.auto-review-count { padding: 6px 9px; border: 1px solid #b4d4d1; border-radius: 999px; color: #175f59; background: #fff; font-size: 8px; font-weight: 820; }
+.auto-review-panel.insufficient .auto-review-count { border-color: #e0cda9; color: #835920; }
+.auto-review-reason { margin: 0; padding: 0 16px 12px 63px; color: #536c72; font-size: 9px; line-height: 1.55; }
+.auto-review-remedies { display: flex; flex-wrap: wrap; gap: 7px; padding: 0 16px 13px; }
+.auto-review-remedies button { min-width: 190px; flex: 1; display: grid; grid-template-columns: 1fr auto 15px; align-items: center; gap: 9px; padding: 10px 11px; border: 1px solid #bdd8d5; border-radius: 9px; color: var(--ink); background: #fff; text-align: left; }
+.auto-review-remedies button:hover { border-color: #79afa9; box-shadow: 0 5px 14px rgba(34, 88, 86, 0.07); }
+.auto-review-remedies button > span { min-width: 0; display: grid; gap: 2px; }
+.auto-review-remedies b { overflow: hidden; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.auto-review-remedies small { overflow: hidden; color: var(--muted-2); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.auto-review-remedies i { padding: 4px 6px; border-radius: 5px; color: #17625c; background: #e7f3f1; font-size: 7px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.auto-review-remedies svg { color: var(--forest); }
+.auto-review-coverage { margin: 0 16px 13px; padding: 11px; border: 1px solid #d5e4e5; border-radius: 9px; background: rgba(255, 255, 255, 0.72); }
+.auto-review-coverage-head { display: flex; justify-content: space-between; gap: 10px; }
+.auto-review-coverage-head strong { font-size: 9px; }
+.auto-review-coverage-head > span { color: var(--forest); font-size: 8px; font-weight: 750; }
+.auto-review-coverage > div:last-child { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.auto-review-coverage > div:last-child > span { min-width: 150px; flex: 1; display: grid; grid-template-columns: 13px 1fr; gap: 2px 5px; padding: 7px; border-radius: 7px; }
+.auto-review-coverage .covered { color: #175f59; background: #e9f4f2; }
+.auto-review-coverage .missing { color: #8a5960; background: #f9edef; }
+.auto-review-coverage svg { grid-row: 1 / 3; margin-top: 1px; }
+.auto-review-coverage b { overflow: hidden; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.auto-review-coverage small { color: inherit; font-size: 7px; opacity: 0.78; }
+.auto-review-warning { display: flex; align-items: flex-start; gap: 8px; padding: 10px 16px; border-top: 1px solid #d7e5e5; color: #65777f; background: rgba(255, 255, 255, 0.46); font-size: 8px; line-height: 1.45; }
+.auto-review-warning svg { flex: none; color: var(--forest); }
 .remedy-results { display: grid; gap: 10px; }
 .remedy-result { display: grid; grid-template-columns: 34px minmax(0, 1fr) 128px; gap: 13px; padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: #fff; transition: 0.16s ease; }
 .remedy-result:hover { border-color: #b8cbd8; box-shadow: 0 9px 24px rgba(28, 57, 79, 0.065); }
@@ -432,6 +462,10 @@ mark { padding: 0 1px; color: inherit; background: #f5dfb4; }
   .finder-input { grid-template-columns: 20px 1fr auto; }
   .finder-input .add-symptom-btn { grid-column: 1 / -1; width: 100%; }
   .finder-help { line-height: 1.5; }
+  .auto-review-head { grid-template-columns: 34px 1fr; }
+  .auto-review-count { grid-column: 2; justify-self: start; }
+  .auto-review-reason { padding-left: 15px; }
+  .auto-review-coverage-head { align-items: flex-start; flex-direction: column; }
   .finder-summary { grid-template-columns: 1fr; }
   .summary-symptoms, .source-key, .summary-note { grid-column: 1; }
   .remedy-result { grid-template-columns: 30px minmax(0, 1fr); padding: 13px; }

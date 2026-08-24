@@ -385,6 +385,141 @@ function combinationCandidates(results, totalSegments) {
     .slice(0, 3);
 }
 
+const STRONG_SEGMENT_SCORE = 0.58;
+const MODERATE_SEGMENT_SCORE = 0.44;
+
+function recommendReviewSet(results, totalSegments) {
+  if (!results.length || totalSegments < 1) return null;
+
+  const segmentScore = (remedy, segmentIndex) => remedy.segmentMatches[segmentIndex]?.score || 0;
+  const assignmentsFor = (members) => Array.from({ length: totalSegments }, (_, segmentIndex) => {
+    const ranked = members
+      .map((member) => ({
+        remedyId: member.id,
+        remedyName: member.name,
+        score: segmentScore(member, segmentIndex),
+      }))
+      .sort((left, right) => right.score - left.score || left.remedyName.localeCompare(right.remedyName));
+    return {
+      segmentIndex,
+      segment: members[0]?.segmentMatches[segmentIndex]?.segment || "",
+      ...ranked[0],
+    };
+  });
+
+  const describe = (members) => {
+    const assignments = assignmentsFor(members);
+    const bestScores = assignments.map((assignment) => assignment.score);
+    const coveredSegmentCount = bestScores.filter((score) => score >= MODERATE_SEGMENT_SCORE).length;
+    const strongCoveredSegmentCount = bestScores.filter((score) => score >= STRONG_SEGMENT_SCORE).length;
+    const averageBestScore = bestScores.reduce((total, score) => total + score, 0) / totalSegments;
+    const weakestBestScore = Math.min(...bestScores);
+    const averageAlignment = members.reduce((total, member) => total + member.score, 0) / members.length;
+    const contributingIds = new Set(assignments.filter((assignment) => assignment.score >= MODERATE_SEGMENT_SCORE).map((assignment) => assignment.remedyId));
+    const allMembersContribute = members.every((member) => contributingIds.has(member.id));
+    const fullCoverage = coveredSegmentCount === totalSegments;
+    const quality =
+      (strongCoveredSegmentCount / totalSegments) * 0.38 +
+      averageBestScore * 0.31 +
+      weakestBestScore * 0.19 +
+      averageAlignment * 0.12 -
+      (members.length - 1) * 0.025;
+    return {
+      members,
+      assignments,
+      coveredSegmentCount,
+      strongCoveredSegmentCount,
+      averageBestScore,
+      weakestBestScore,
+      allMembersContribute,
+      fullCoverage,
+      quality,
+    };
+  };
+
+  const topSingle = describe([results[0]]);
+  const singleIsStrong = topSingle.fullCoverage &&
+    topSingle.weakestBestScore >= STRONG_SEGMENT_SCORE &&
+    topSingle.averageBestScore >= 0.64 &&
+    results[0].alignmentPercent >= 68;
+
+  if (totalSegments === 1 || singleIsStrong) {
+    const strong = topSingle.strongCoveredSegmentCount === totalSegments;
+    return {
+      mode: strong ? "single" : "insufficient",
+      remedyIds: [results[0].id],
+      count: 1,
+      coveredSegmentCount: topSingle.coveredSegmentCount,
+      strongCoveredSegmentCount: topSingle.strongCoveredSegmentCount,
+      totalSegmentCount: totalSegments,
+      confidenceLabel: strong ? "Strong source coverage" : "Partial source coverage",
+      reason: strong
+        ? "One remedy has strong source support across every interpreted symptom concept."
+        : "This is the closest source match, but the entered symptom does not yet have strong source coverage.",
+      assignments: topSingle.assignments,
+    };
+  }
+
+  const poolById = new Map(results.slice(0, 16).map((item) => [item.id, item]));
+  for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex += 1) {
+    [...results]
+      .sort((left, right) => segmentScore(right, segmentIndex) - segmentScore(left, segmentIndex))
+      .slice(0, 4)
+      .forEach((item) => poolById.set(item.id, item));
+  }
+  const pool = [...poolById.values()].slice(0, 24);
+  const candidates = [];
+  const consider = (members) => {
+    const candidate = describe(members);
+    if (candidate.allMembersContribute) candidates.push(candidate);
+  };
+
+  for (let first = 0; first < pool.length; first += 1) {
+    for (let second = first + 1; second < pool.length; second += 1) {
+      consider([pool[first], pool[second]]);
+      for (let third = second + 1; third < pool.length; third += 1) {
+        consider([pool[first], pool[second], pool[third]]);
+      }
+    }
+  }
+
+  candidates.sort((left, right) =>
+    Number(right.fullCoverage) - Number(left.fullCoverage) ||
+    right.strongCoveredSegmentCount - left.strongCoveredSegmentCount ||
+    right.quality - left.quality ||
+    left.members.length - right.members.length
+  );
+
+  let best = candidates[0] || topSingle;
+  if (best.members.length === 3) {
+    const comparablePair = candidates.find((candidate) =>
+      candidate.members.length === 2 &&
+      candidate.coveredSegmentCount === best.coveredSegmentCount &&
+      candidate.strongCoveredSegmentCount === best.strongCoveredSegmentCount &&
+      candidate.quality >= best.quality - 0.04
+    );
+    if (comparablePair) best = comparablePair;
+  }
+
+  const fullStrongCoverage = best.fullCoverage && best.strongCoveredSegmentCount === totalSegments;
+  const mode = best.fullCoverage ? "group" : "insufficient";
+  return {
+    mode,
+    remedyIds: best.members.map((member) => member.id),
+    count: best.members.length,
+    coveredSegmentCount: best.coveredSegmentCount,
+    strongCoveredSegmentCount: best.strongCoveredSegmentCount,
+    totalSegmentCount: totalSegments,
+    confidenceLabel: fullStrongCoverage
+      ? "Strong combined source coverage"
+      : best.fullCoverage ? "Complete combined source coverage" : "Partial source coverage",
+    reason: best.fullCoverage
+      ? "No single remedy has equally strong support across the complete case; this is the smallest complementary source-review set with the best combined coverage."
+      : "The source dataset does not cover every interpreted symptom strongly enough. Refine the symptoms and review this partial shortlist with clinical judgement.",
+    assignments: best.assignments,
+  };
+}
+
 export function createRemedySearchEngine(payload) {
   const preparations = payload.preparations.map((preparation) => ({
     id: preparation.id,
@@ -437,7 +572,7 @@ export function createRemedySearchEngine(payload) {
       .flatMap((interpretation) => interpretation.concepts)
       .map((segment) => buildQuery(segment, documentFrequency, symptoms.length))
       .filter((query) => query.tokens.length > 0);
-    if (!queries.length) return { results: [], combinations: [], interpretedSegments: [], inputInterpretations };
+    if (!queries.length) return { results: [], combinations: [], recommendation: null, interpretedSegments: [], inputInterpretations };
 
     const bestBySegment = queries.map(() => new Map());
     for (const symptom of symptoms) {
@@ -494,9 +629,17 @@ export function createRemedySearchEngine(payload) {
       a.name.localeCompare(b.name)
     );
 
+    const recommendation = recommendReviewSet(allResults, queries.length);
+    const displayedResults = allResults.slice(0, limit);
+    for (const remedyId of recommendation?.remedyIds || []) {
+      const recommendedResult = allResults.find((result) => result.id === remedyId);
+      if (recommendedResult && !displayedResults.some((result) => result.id === remedyId)) displayedResults.push(recommendedResult);
+    }
+
     return {
-      results: allResults.slice(0, limit),
+      results: displayedResults,
       combinations: combinationCandidates(allResults, queries.length),
+      recommendation,
       interpretedSegments: queries.map((query) => query.original),
       inputInterpretations,
     };

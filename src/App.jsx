@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft, Bell, BookOpen, CalendarDays, Check, CheckCircle2, ChevronRight,
@@ -171,7 +171,7 @@ function PatientProfile({ patients, cases, recordsStatus }) {
   return <div>
     <button className="back-btn" onClick={() => navigate("/patients")}><ArrowLeft size={16} /> Back to patients</button>
     <PageHeader eyebrow="Patient profile" title={patient.name} description={`${patient.id} · Age ${patient.age} · Last visit ${patient.lastVisit}`} action={<button className="primary-btn" onClick={() => navigate("/consultation", { state: { patientId: patient.id } })}><Plus size={17} /> New consultation</button>} />
-    <div className="profile-grid"><section className="panel profile-summary"><div className="large-avatar">{initials(patient.name)}</div><h3>{patient.name}</h3><span className="muted">{patient.id}</span><div className="profile-details"><div><span>Age</span><strong>{patient.age || "Not recorded"}</strong></div><div><span>Status</span><strong>{patient.status}</strong></div><div><span>Last visit</span><strong>{patient.lastVisit || "No visits"}</strong></div></div></section><section className="panel"><div className="panel-head"><div><h3>Consultation history</h3><p>Symptoms, source matches and practitioner decisions remain connected.</p></div></div>{patientCases.length ? <div className="history-list">{patientCases.map((record) => <div className="history-card" key={record.id}><div className="history-date">{record.date}</div><strong>{record.symptoms.join(" · ")}</strong><p><b>{record.remedyName}</b> was selected after source review.{record.rationale ? ` ${record.rationale}` : ""}</p><div className="history-meta"><span>{record.remedyCode}</span><span>{record.symptoms.length} symptom{record.symptoms.length === 1 ? "" : "s"}</span></div></div>)}</div> : <CompactEmptyState icon={<ClipboardList size={20} />} title="No consultations recorded" text="Completed consultations for this patient will appear here." />}</section></div>
+    <div className="profile-grid"><section className="panel profile-summary"><div className="large-avatar">{initials(patient.name)}</div><h3>{patient.name}</h3><span className="muted">{patient.id}</span><div className="profile-details"><div><span>Age</span><strong>{patient.age || "Not recorded"}</strong></div><div><span>Status</span><strong>{patient.status}</strong></div><div><span>Last visit</span><strong>{patient.lastVisit || "No visits"}</strong></div></div></section><section className="panel"><div className="panel-head"><div><h3>Consultation history</h3><p>Symptoms, source matches and practitioner decisions remain connected.</p></div></div>{patientCases.length ? <div className="history-list">{patientCases.map((record) => { const remedies = remediesForRecord(record); return <div className="history-card" key={record.id}><div className="history-date">{record.date}</div><strong>{record.symptoms.join(" · ")}</strong><p><b>{remedies.map((remedy) => remedy.name).join(" + ")}</b> {remedies.length === 1 ? "was" : "were"} retained as the source-review set.{record.rationale ? ` ${record.rationale}` : ""}</p><div className="history-meta"><span>{remedies.map((remedy) => remedy.code).join(" · ")}</span><span>{record.symptoms.length} symptom{record.symptoms.length === 1 ? "" : "s"}</span></div></div>; })}</div> : <CompactEmptyState icon={<ClipboardList size={20} />} title="No consultations recorded" text="Completed consultations for this patient will appear here." />}</section></div>
   </div>;
 }
 
@@ -183,7 +183,7 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
   const [description, setDescription] = useState("");
   const [symptoms, setSymptoms] = useState([]);
   const [symptomDraft, setSymptomDraft] = useState("");
-  const [selectedRemedy, setSelectedRemedy] = useState(null);
+  const [selectedRemedies, setSelectedRemedies] = useState([]);
   const [rationale, setRationale] = useState("");
   const [saving, setSaving] = useState(false);
   const patient = patients.find((item) => item.id === patientId) || patients[0];
@@ -199,25 +199,25 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
   };
   const continueFlow = () => {
     if (step === 2 && symptoms.length === 0 && description.trim().length < 3) { showToast("Add at least one symptom before continuing."); return; }
-    if (step === 3 && !selectedRemedy) { showToast("Select a remedy after reviewing its source evidence."); return; }
+    if (step === 3 && selectedRemedies.length === 0) { showToast("Keep at least one remedy in the review set after checking its source evidence."); return; }
     setStep((current) => Math.min(4, current + 1));
   };
   const searchSymptoms = symptoms.length > 0 ? symptoms : [description.trim()].filter(Boolean);
 
   const completeConsultation = async () => {
-    if (!patient || !selectedRemedy || saving) return;
+    if (!patient || selectedRemedies.length === 0 || saving) return;
     setSaving(true);
     try {
       await onSaveCase({
         patientId: patient.id,
         description: description.trim(),
         symptoms: searchSymptoms,
-        remedy: {
-          id: selectedRemedy.id,
-          code: selectedRemedy.code,
-          name: selectedRemedy.name,
-          scientific: selectedRemedy.scientific,
-        },
+        remedies: selectedRemedies.map((remedy) => ({
+          id: remedy.id,
+          code: remedy.code,
+          name: remedy.name,
+          scientific: remedy.scientific,
+        })),
         rationale: rationale.trim(),
         datasetVersion: "1.0.0",
       });
@@ -238,8 +238,8 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
     <div className="stepper">{["Patient", "Symptoms", "Remedy review", "Decision"].map((label, index) => <div className={`step ${step === index + 1 ? "current" : step > index + 1 ? "done" : ""}`} key={label}><div className="step-circle">{step > index + 1 ? <Check size={15} /> : index + 1}</div><span>{label}</span></div>)}</div>
     {step === 1 && <section className="panel consultation-panel"><SectionTitle number="01" title="Select the patient" text="The consultation and final remedy selection will remain connected to this record." /><label htmlFor="consultation-patient">Patient</label><select id="consultation-patient" value={patientId} onChange={(event) => setPatientId(event.target.value)}>{patients.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id}</option>)}</select><div className="selected-patient"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom}</span></div><span className="status">{patient.status}</span></div><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
     {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Enter one confirmed symptom" /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
-    {step === 3 && <div><RemedyFinder key={searchSymptoms.join("|")} initialSymptoms={searchSymptoms} selectedRemedy={selectedRemedy} onSelect={setSelectedRemedy} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedy ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedy.name}</strong> selected for review</span></> : <span>Select one remedy after checking the source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
-    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, selected remedy, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Selected remedy</span><strong>{selectedRemedy?.name}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Selection rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this remedy was selected after reviewing the matched source symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
+    {step === 3 && <div><RemedyFinder key={searchSymptoms.join("|")} initialSymptoms={searchSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={setSelectedRemedies} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedies.length ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong> in the review set</span></> : <span>Review the automatically suggested set and its source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
+    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, retained source-review set, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Review set</span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Review rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this source-review set was retained after checking the matched symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
   </div>;
 }
 
@@ -248,25 +248,54 @@ function SectionTitle({ number, title, text }) { return <div className="section-
 
 function SearchPage({ setEvidence, showToast }) {
   const location = useLocation();
-  const [selectedRemedy, setSelectedRemedy] = useState(null);
-  const initialSymptoms = location.state?.query ? [location.state.query] : [];
-  return <div><PageHeader eyebrow="Materia Medica" title="Remedy finder" description="Type naturally, add distinct symptoms, and review remedies that match across the complete set." /><RemedyFinder initialSymptoms={initialSymptoms} selectedRemedy={selectedRemedy} onSelect={(remedy) => { setSelectedRemedy(remedy); showToast(`${remedy.name} selected for the current review.`); }} onEvidence={setEvidence} /></div>;
+  const navigate = useNavigate();
+  const [selectedRemedies, setSelectedRemedies] = useState([]);
+  const initialSymptoms = useMemo(() => location.state?.query ? [location.state.query] : [], []);
+  useEffect(() => {
+    if (location.state?.query) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+  const updateSelection = (remedies, context = {}) => {
+    setSelectedRemedies(remedies);
+    if (!context.automatic) showToast(remedies.length ? `${remedies.length} ${remedies.length === 1 ? "remedy" : "remedies"} retained for source review.` : "Source-review set cleared.");
+  };
+  return <div><PageHeader eyebrow="Materia Medica" title="Remedy finder" description="Type naturally, add distinct symptoms, and let the source engine build the smallest review set that covers the case." /><RemedyFinder initialSymptoms={initialSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={updateSelection} onEvidence={setEvidence} /></div>;
 }
 
-function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEvidence, compact = false }) {
+function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelectionChange, onEvidence, compact = false }) {
   const [confirmedSymptoms, setConfirmedSymptoms] = useState(() => initialSymptoms.filter(Boolean));
   const [draft, setDraft] = useState("");
+  const lastAutomaticSignature = useRef("");
   const activeSegments = useMemo(() => [...confirmedSymptoms, ...(draft.trim().length >= 2 ? [draft.trim()] : [])], [confirmedSymptoms, draft]);
-  const { status, results, combinations, interpretedSegments, inputInterpretations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
+  const { status, results, combinations, recommendation, interpretedSegments, inputInterpretations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
   const effectiveSegments = interpretedSegments.length ? interpretedSegments : activeSegments;
+  const recommendationSignature = recommendation ? `${effectiveSegments.join("|")}::${recommendation.mode}::${recommendation.remedyIds.join("|")}` : "";
   const corrections = inputInterpretations.flatMap((interpretation) => interpretation.corrections || []);
   const hasExpandedInterpretation = corrections.length > 0 || inputInterpretations.some((interpretation) => interpretation.concepts?.length > 1);
+  useEffect(() => {
+    if (!activeSegments.length) {
+      lastAutomaticSignature.current = "";
+      if (selectedRemedies.length) onSelectionChange([], { automatic: true });
+      return;
+    }
+    if (status !== "ready" || !recommendation || recommendationSignature === lastAutomaticSignature.current) return;
+    const recommendedRemedies = recommendation.remedyIds.map((id) => results.find((remedy) => remedy.id === id)).filter(Boolean);
+    if (!recommendedRemedies.length) return;
+    lastAutomaticSignature.current = recommendationSignature;
+    onSelectionChange(recommendedRemedies, { automatic: true, recommendation });
+  }, [activeSegments.length, onSelectionChange, recommendation, recommendationSignature, results, selectedRemedies.length, status]);
   const addSymptom = () => {
     const value = draft.trim();
     if (value.length < 2 || confirmedSymptoms.some((item) => item.toLowerCase() === value.toLowerCase())) return;
     setConfirmedSymptoms((items) => [...items, value]); setDraft("");
   };
   const removeSymptom = (value) => setConfirmedSymptoms((items) => items.filter((item) => item !== value));
+  const toggleRemedy = (remedy) => {
+    const alreadySelected = selectedRemedies.some((item) => item.id === remedy.id);
+    const next = alreadySelected
+      ? selectedRemedies.filter((item) => item.id !== remedy.id)
+      : [...selectedRemedies, remedy].slice(-3);
+    onSelectionChange(next, { automatic: false });
+  };
 
   return <section className={`finder-shell ${compact ? "compact" : ""}`}>
     <div className="finder-main">
@@ -282,7 +311,8 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
       {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
       {activeSegments.length > 0 && status !== "loading" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
-      <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedy?.id === remedy.id} querySegments={effectiveSegments} onSelect={() => onSelect(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: effectiveSegments })} />)}</div>
+      {recommendation && status !== "loading" && <AutomaticReviewSet recommendation={recommendation} results={results} segments={effectiveSegments} selectedRemedies={selectedRemedies} onEvidence={onEvidence} />}
+      <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedies.some((item) => item.id === remedy.id)} querySegments={effectiveSegments} onSelect={() => toggleRemedy(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: effectiveSegments })} />)}</div>
       {effectiveSegments.length > 1 && status !== "loading" && <CoverageGroups combinations={combinations} segments={effectiveSegments} results={results} onEvidence={onEvidence} />}
     </div>
     <aside className="finder-summary">
@@ -290,7 +320,7 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
       <div className="summary-symptoms">{effectiveSegments.length ? effectiveSegments.map((symptom, index) => <div key={`${symptom}-${index}`}><span>{index + 1}</span><p>{symptom}</p><Check size={14} /></div>) : <p className="empty-summary">No symptoms entered yet.</p>}</div>
       <div className="summary-divider" /><span className="summary-label">Current leader</span>
       {results[0] ? <div className="leader-card"><div className="leader-rank">1</div><div><strong>{results[0].name}</strong><span>{results[0].scientific}</span></div><p>{results[0].matchedSegmentCount} of {results[0].totalSegmentCount} symptoms matched · {results[0].alignmentPercent}% source alignment</p></div> : <p className="empty-summary">The leading remedy will appear here as you type.</p>}
-      {selectedRemedy && <div className="selected-summary"><CheckCircle2 size={17} /><div><span>Selected for review</span><strong>{selectedRemedy.name}</strong></div></div>}
+      {selectedRemedies.length > 0 && <div className="selected-summary"><CheckCircle2 size={17} /><div><span>Current source-review set · {selectedRemedies.length}</span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong></div></div>}
       <div className="source-key"><span className="summary-label">Source emphasis</span><div><i className="priority-dot p3" />High</div><div><i className="priority-dot p2" />Partial</div><div><i className="priority-dot p1" />Standard</div></div>
       <div className="summary-note"><ShieldCheck size={16} /><p>The doctor reviews the source wording and makes the final selection.</p></div>
     </aside>
@@ -300,6 +330,38 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedy, onSelect, onEviden
 function SymptomChips({ symptoms, onRemove, emptyText }) {
   if (!symptoms.length) return emptyText ? <p className="empty-chips">{emptyText}</p> : null;
   return <div className="symptom-chips">{symptoms.map((symptom, index) => <span key={`${symptom}-${index}`}><b>{index + 1}</b>{symptom}<button onClick={() => onRemove(symptom)} aria-label={`Remove ${symptom}`}><X size={14} /></button></span>)}</div>;
+}
+
+function AutomaticReviewSet({ recommendation, results, segments, selectedRemedies, onEvidence }) {
+  const remedies = recommendation.remedyIds.map((id) => results.find((remedy) => remedy.id === id)).filter(Boolean);
+  const allSelected = remedies.length > 0 && remedies.every((remedy) => selectedRemedies.some((item) => item.id === remedy.id));
+  const heading = recommendation.mode === "single"
+    ? "One remedy is sufficient for source review"
+    : recommendation.mode === "group"
+      ? `${recommendation.count} complementary remedies are needed for source review`
+      : "The source match is incomplete";
+  return <section className={`auto-review-panel ${recommendation.mode}`} aria-live="polite">
+    <div className="auto-review-head">
+      <div className="auto-review-icon"><CheckCircle2 size={19} /></div>
+      <div><span className="section-kicker">Automatic case analysis</span><h3>{heading}</h3></div>
+      <span className="auto-review-count">{recommendation.count} {recommendation.count === 1 ? "remedy" : "remedies"}</span>
+    </div>
+    <p className="auto-review-reason">{recommendation.reason}</p>
+    <div className="auto-review-remedies">{remedies.map((remedy) => <button key={remedy.id} onClick={() => onEvidence({ ...remedy, querySegments: segments })}>
+      <span><b>{remedy.name}</b><small>{remedy.scientific}</small></span>
+      <i>{allSelected ? "In review set" : "Suggested"}</i>
+      <ChevronRight size={15} />
+    </button>)}</div>
+    <div className="auto-review-coverage">
+      <div className="auto-review-coverage-head"><strong>{recommendation.coveredSegmentCount} of {recommendation.totalSegmentCount} concepts covered</strong><span>{recommendation.confidenceLabel}</span></div>
+      <div>{recommendation.assignments.map((assignment) => <span className={assignment.score >= 0.44 ? "covered" : "missing"} key={`${assignment.segmentIndex}-${assignment.remedyId}`}>
+        {assignment.score >= 0.44 ? <Check size={12} /> : <X size={12} />}
+        <b>{assignment.segment}</b>
+        <small>{assignment.score >= 0.44 ? `${assignment.remedyName} · ${Math.round(assignment.score * 100)}%` : "Refine this symptom"}</small>
+      </span>)}</div>
+    </div>
+    <div className="auto-review-warning"><ShieldCheck size={16} /><span>This set is selected automatically for source comparison. It is not a prescription, combination, dosing or potency recommendation.</span></div>
+  </section>;
 }
 
 function RemedyResult({ rank, remedy, selected, querySegments, onSelect, onEvidence }) {
@@ -312,7 +374,7 @@ function RemedyResult({ rank, remedy, selected, querySegments, onSelect, onEvide
       <div className="segment-match-grid">{remedy.segmentMatches.map((match, index) => <div className={match.matched ? "matched" : "unmatched"} key={`${match.segment}-${index}`}>{match.matched ? <Check size={13} /> : <X size={13} />}<span>{index + 1}. {match.segment}</span>{match.matched && <b>{Math.round(match.score * 100)}%</b>}</div>)}</div>
       {primaryEvidence && <div className="source-preview"><div className="source-preview-head"><span>Best matching source symptom</span><button onClick={onEvidence}>Page {primaryEvidence.page} · View evidence</button></div><p><HighlightedText text={primaryEvidence.text} segments={querySegments} /></p></div>}
     </div>
-    <div className="result-action"><button className={selected ? "selected-btn" : "secondary-btn"} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Selected</> : "Select remedy"}</button><button className="text-btn" onClick={onEvidence}><BookOpen size={15} /> Source details</button></div>
+    <div className="result-action"><button className={selected ? "selected-btn" : "secondary-btn"} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> In review set</> : "Add to review set"}</button><button className="text-btn" onClick={onEvidence}><BookOpen size={15} /> Source details</button></div>
   </article>;
 }
 
@@ -393,8 +455,13 @@ function InlineLoading({ text }) {
   return <div className="inline-loading"><span />{text}</div>;
 }
 
+function remediesForRecord(record) {
+  if (Array.isArray(record.remedies) && record.remedies.length) return record.remedies;
+  return record.remedyName ? [{ id: record.remedyId, code: record.remedyCode, name: record.remedyName, scientific: record.remedyScientific }] : [];
+}
+
 function Cases({ cases, recordsStatus }) {
-  return <div><PageHeader eyebrow="Continuity" title="Case records" description="Only completed consultations appear here; no sample cases are preloaded." /><section className="panel">{recordsStatus === "loading" ? <InlineLoading text="Loading case records…" /> : cases.length ? <div className="table-wrap"><table><thead><tr><th>Case</th><th>Patient</th><th>Date</th><th>Symptoms</th><th>Selected remedy</th></tr></thead><tbody>{cases.map((record) => <tr key={record.id}><td><strong>{record.id}</strong></td><td>{record.patientName}</td><td>{record.date}</td><td>{record.symptoms.join(" · ")}</td><td><span className="status">{record.remedyName}</span></td></tr>)}</tbody></table></div> : <CompactEmptyState icon={<ClipboardList size={21} />} title="No case records yet" text="A case will appear after a practitioner completes and saves a consultation." />}</section></div>;
+  return <div><PageHeader eyebrow="Continuity" title="Case records" description="Only completed consultations appear here; no sample cases are preloaded." /><section className="panel">{recordsStatus === "loading" ? <InlineLoading text="Loading case records…" /> : cases.length ? <div className="table-wrap"><table><thead><tr><th>Case</th><th>Patient</th><th>Date</th><th>Symptoms</th><th>Source-review set</th></tr></thead><tbody>{cases.map((record) => <tr key={record.id}><td><strong>{record.id}</strong></td><td>{record.patientName}</td><td>{record.date}</td><td>{record.symptoms.join(" · ")}</td><td><span className="status">{remediesForRecord(record).map((remedy) => remedy.name).join(" + ")}</span></td></tr>)}</tbody></table></div> : <CompactEmptyState icon={<ClipboardList size={21} />} title="No case records yet" text="A case will appear after a practitioner completes and saves a consultation." />}</section></div>;
 }
 
 function SettingsPage() {
