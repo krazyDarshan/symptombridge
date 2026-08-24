@@ -1,28 +1,28 @@
 :root {
   font-family: "Aptos", "Segoe UI", system-ui, -apple-system, sans-serif;
-  color: #352d2f;
-  background: #f1e9e1;
+  color: #342f38;
+  background: #f8f1d9;
   font-synthesis: none;
-  --ink: #322a2d;
-  --ink-soft: #51474a;
-  --muted: #716164;
-  --muted-2: #a08b8d;
-  --canvas: #f1e9e1;
-  --canvas-deep: #c9aaa8;
-  --paper: #fffaf2;
-  --paper-soft: #f8efe3;
-  --paper-deep: #efdfc7;
-  --line: #c4aca8;
-  --line-soft: #e8d9ca;
-  --copper: #805166;
-  --copper-dark: #5d3846;
-  --camel: #d7b77f;
-  --camel-soft: #f1dfb9;
-  --apricot: #ad7082;
-  --espresso: #3d3034;
-  --espresso-deep: #2e2528;
-  --shadow: 7px 8px 0 rgba(105, 75, 80, 0.115);
-  --shadow-small: 4px 5px 0 rgba(105, 75, 80, 0.095);
+  --ink: #342f38;
+  --ink-soft: #51485a;
+  --muted: #746a7b;
+  --muted-2: #9c91a5;
+  --canvas: #f8f1d9;
+  --canvas-deep: #c8b8d8;
+  --paper: #fffaf0;
+  --paper-soft: #f2edf8;
+  --paper-deep: #f5e7b5;
+  --line: #b8a8c8;
+  --line-soft: #e6ddef;
+  --copper: #806b94;
+  --copper-dark: #5d496f;
+  --camel: #d8b957;
+  --camel-soft: #f7e8ad;
+  --apricot: #ad96c2;
+  --espresso: #4a3d55;
+  --espresso-deep: #382f41;
+  --shadow: 7px 8px 0 rgba(84, 67, 98, 0.12);
+  --shadow-small: 4px 5px 0 rgba(84, 67, 98, 0.09);
 }
 
 * { box-sizing: border-box; }
@@ -32,9 +32,9 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 5% 0%, rgba(210, 164, 170, 0.22) 0, rgba(210, 164, 170, 0) 33rem),
-    radial-gradient(circle at 96% 4%, rgba(227, 196, 137, 0.25) 0, rgba(227, 196, 137, 0) 37rem),
-    linear-gradient(138deg, #f7f0e7 0%, #efe4df 50%, #f6eddf 100%);
+    radial-gradient(circle at 5% 0%, rgba(203, 188, 224, 0.58) 0, rgba(203, 188, 224, 0) 34rem),
+    radial-gradient(circle at 96% 4%, rgba(246, 224, 151, 0.62) 0, rgba(246, 224, 151, 0) 38rem),
+    linear-gradient(138deg, #f2ebfa 0%, #fff5d6 52%, #eee7f7 100%);
   background-attachment: fixed;
 }
 button, input, select, textarea { font: inherit; }
@@ -552,3 +552,191 @@ mark { padding: 0 1px; color: inherit; background: #c3abaf; }
   .modal { padding: 17px; }
   .toast { right: 15px; bottom: 15px; left: 15px; justify-content: center; }
 }
+
+/* Soft lilac + buttercream theme */
+.sidebar {
+  background: #ded4ea;
+  border-color: #9d88af;
+  box-shadow: 0 5px 0 rgba(85, 67, 99, 0.12);
+}
+.brand-mark,
+.icon-btn,
+.panel,
+.dataset-stats,
+.quick-search,
+.remedy-result,
+.modal,
+.coverage-group-card,
+.leader-card,
+.result-skeleton > div {
+  background: #fffaf0;
+}
+.brand-mark,
+.nav-item.active,
+.quick-search,
+.finder-input,
+.query-interpretation,
+.auto-review-panel,
+.finder-summary,
+.coverage-groups,
+.coverage-group-card {
+  border-color: #9680a9;
+}
+.topbar {
+  background: rgba(255, 246, 215, 0.92);
+  border-color: #c5b176;
+}
+.nav-item:hover { background: rgba(255, 250, 235, 0.7); }
+.nav-item.active {
+  background: #f0d98d;
+  box-shadow: 3px 3px 0 rgba(84, 67, 98, 0.14);
+}
+.avatar,
+.primary-btn,
+.selected-btn,
+.symptom-chips b,
+.step.current .step-circle,
+.auto-review-icon,
+.priority-3,
+.coverage-group-rank,
+.summary-symptoms > div > span,
+.toast {
+  background: #4a3d55;
+  border-color: #4a3d55;
+}
+.primary-btn { box-shadow: 3px 3px 0 #d8b957; }
+.primary-btn:hover { box-shadow: 1px 1px 0 #d8b957; }
+.secondary-btn {
+  background: #fff8dc;
+  border-color: #9c86ae;
+}
+.secondary-btn:hover { background: #f5e3a5; border-color: #705d81; }
+.page-heading-copy::before { background: linear-gradient(#4a3d55 0 56%, #d8b957 56%); }
+.page-header-rule { border-top-color: #9c86ae; border-bottom-color: rgba(255, 248, 219, 0.85); }
+.search-entry-card {
+  background: linear-gradient(118deg, #e5dcf0 0%, #f0e6f6 58%, #f8e9b6 100%);
+  border-color: #8f78a2;
+  border-left-color: #5d496f;
+  box-shadow: 9px 10px 0 #c6b8d1;
+}
+.search-entry-card::after { color: rgba(74, 61, 85, 0.09); }
+.dataset-stat:nth-child(1)::before,
+.dataset-stat:nth-child(4)::before { background: #4a3d55; }
+.dataset-stat:nth-child(2)::before { background: #806b94; }
+.dataset-stat:nth-child(3)::before { background: #d8b957; }
+.case-avatar,
+.small-avatar,
+.large-avatar,
+.section-number,
+.workflow-row > span,
+.setting-icon,
+.compact-empty-icon { background: #f7e8ad; }
+.workflow-row:nth-of-type(3) > span { background: #d7cbe3; }
+.status,
+.history-meta span,
+.setting-status { background: #e7def0; }
+.status.amber { background: #f5e4aa; }
+.status.neutral { background: #f3eef8; }
+.clinical-note,
+.decision-summary,
+.selected-patient {
+  background: #fff3cb;
+  border-color: #c7ad63;
+}
+.search-box,
+.profile-details div,
+.history-card,
+.compact-empty,
+.consultation-panel input,
+.consultation-panel select,
+.consultation-panel textarea,
+.patient-form-grid input,
+.patient-form-grid select,
+.source-preview,
+.evidence-list article {
+  background: #fff9e8;
+}
+th { background: #eee4f5; }
+tbody tr:hover { background: #fff2c7; }
+.symptom-chips > span {
+  background: #e4d9ed;
+  border-color: #9982aa;
+}
+.finder-input-panel {
+  background: linear-gradient(122deg, #e7def0 0%, #f3ebf7 70%, #f9e9b7 100%);
+  border-color: #9079a2;
+}
+.finder-input-panel::before { color: #382f41; background: #d7bf68; }
+.finder-input { background: #fffaf0; }
+.query-interpretation {
+  background: #fff1c6;
+  border-color: #c7ad61;
+}
+.query-interpretation span { background: #fffaf0; border-color: #a48fb6; }
+.starter-state,
+.error-state,
+.form-error { background: #f1ebf6; border-color: #a38db4; }
+.auto-review-panel {
+  background: #eee7f4;
+  border-color: #917ba3;
+  border-left-color: #4a3d55;
+}
+.auto-review-panel.insufficient { background: #ddd2e8; border-color: #806b94; }
+.auto-review-remedies button,
+.summary-symptoms > div { background: #fffaf0; border-color: #9d87ae; }
+.auto-review-coverage .covered,
+.coverage-segments .covered,
+.segment-match-grid .matched { background: #e4d9ed; }
+.auto-review-coverage .missing,
+.coverage-segments .missing,
+.segment-match-grid .unmatched,
+.coverage-track,
+.result-skeleton span { background: #f6e8b8; }
+.remedy-result:nth-child(even) { background: #fff5d8; }
+.remedy-result:hover { border-color: #8f79a1; }
+.remedy-result.selected { border-color: #5d496f; box-shadow: inset 5px 0 0 #5d496f, var(--shadow-small); }
+.result-rank {
+  color: #3b3243;
+  background: #d9cbe6;
+  border-color: #806b94;
+}
+.alignment-score,
+.segment-match-grid .matched { background: #e3d5ec; border-color: #9b83ac; }
+.match-label,
+.priority-1 { background: #f7eabc; }
+.priority-2 { background: #d8cae4; }
+mark { background: #f0d98d; }
+.source-preview { border-left-color: #806b94; }
+.finder-summary {
+  background: linear-gradient(145deg, #ddd2e8 0%, #e9e0f0 67%, #f6e6ae 100%);
+  border-color: #8e78a1;
+  box-shadow: 8px 9px 0 #c2b3ce;
+}
+.summary-divider,
+.summary-note { border-color: #a28db3; }
+.leader-rank { background: #806b94; }
+.selected-summary {
+  background: #f8e9b8;
+  border-color: #b99d4f;
+}
+.priority-dot.p3 { background: #4a3d55; }
+.priority-dot.p2 { background: #806b94; }
+.priority-dot.p1 { background: #d8b957; }
+.coverage-groups {
+  background: linear-gradient(120deg, #fff0bd 0%, #fff7dc 65%, #e7ddf0 100%);
+  border-color: #b69b4d;
+}
+.comparison-badge { background: #e2d6ec; border-color: #927ca4; }
+.coverage-members button,
+.coverage-groups-empty { background: #eee7f4; border-color: #a28bb3; }
+.coverage-members button:hover { background: #ddd0e8; border-color: #6b587c; }
+.modal-backdrop { background: rgba(56, 47, 65, 0.46); }
+.modal-coverage,
+.evidence-disclaimer,
+.privacy-note,
+.bold-source {
+  background: #f4ecf8;
+  border-color: #aa96ba;
+}
+.evidence-score { background: #e3d8ec; }
+.setting-status { border-color: #a18ab2; }
