@@ -6,7 +6,7 @@
   "scripts": {
     "data:build": "python scripts/build_search_index.py",
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/prepare-sites-build.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
