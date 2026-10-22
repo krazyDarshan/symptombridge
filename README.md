@@ -30,6 +30,10 @@ The ranking and multi-remedy groups are transparent retrieval aids. They are not
 
 ## Local development
 
+For multilingual text, microphone input and Vercel environment setup, see [AI_INPUT_SETUP.md](AI_INPUT_SETUP.md). Use Node.js 24. Keep API keys in server-only environment variables.
+
+Teammates can clone `https://github.com/krazyDarshan/symptombridge.git`, install dependencies and run the commands below. To contribute, use a branch and pull request (or ask the repository owner for collaborator access). The hosted app does not grant repository editing permission.
+
 ```bash
 npm install
 npm run dev
