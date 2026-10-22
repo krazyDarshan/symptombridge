@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { createRemedySearchEngine } from '../src/remedy-search-core.js';
+import { mapSymptomLanguage, speechErrorMessage } from '../src/symptom-language.js';
+const payload = JSON.parse(fs.readFileSync(new URL('../public/data/combined-remedy-index.json', import.meta.url)));
+const engine = createRemedySearchEngine(payload);
+assert.equal(payload.preparations.length, 108);
+const rows = payload.preparations.flatMap(p => p.symptoms);
+assert.equal(new Set(rows.map(r => r[0])).size, rows.length);
+assert.equal(rows.filter(r => r[6] === 'chronic-diseases').length, 40442);
+assert.ok(rows.every(r => r[2] && r[5] > 0));
+const alumina = payload.preparations.find(p => p.name === 'Alumina');
+const found = engine.search([alumina.symptoms[0][2]], 14).results.find(p => p.id === alumina.id);
+assert.ok(found);
+assert.ok(found.evidence.every(e => e.sourceTitle === 'Chronic Diseases' && e.page >= 111));
+assert.equal(found.datasetVersion, '2.0.0-preview');
+for (const input of ['खांसी और गले में खुजली', 'खोकला आणि घशात खाज']) {
+  const mapped = mapSymptomLanguage(input);
+  assert.equal(mapped.unresolved, false);
+  assert.match(mapped.text, /cough/); assert.match(mapped.text, /throat/);
+  assert.ok(engine.search([mapped.text]).results.length > 0);
+}
+assert.equal(mapSymptomLanguage('ताप नाही').hasNegation, true);
+assert.equal(mapSymptomLanguage('अपरिचित शब्द').unresolved, true);
+assert.match(speechErrorMessage('not-allowed'), /denied/);
+const duplicate = { preparations: [{id:'a', name:'a', symptoms:[['1',1,'itching throat','',1,1]]}] };
+const before = createRemedySearchEngine(duplicate).search(['itching throat']).results[0].score;
+duplicate.preparations[0].symptoms.push(['2',2,'itching throat','',1,2,'chronic-diseases']);
+assert.equal(createRemedySearchEngine(duplicate).search(['itching throat']).results[0].score, before);
+console.log('Expansion checks passed.');

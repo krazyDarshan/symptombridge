@@ -118,6 +118,8 @@ export function useClinicalRecords() {
       code: String(remedy.code),
       name: String(remedy.name),
       scientific: String(remedy.scientific || ""),
+      evidence: Array.isArray(remedy.evidence) ? remedy.evidence : [],
+      datasetVersion: String(remedy.datasetVersion || details.datasetVersion || '1.0.0'),
     }));
     const primaryRemedy = remedies[0];
 

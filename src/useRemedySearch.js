@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSymptomInterpretation } from './ai-input';
 
 
-export function useRemedySearch(segments, limit = 10) {
+export function useRemedySearch(segments, limit = 10, source = 'original') {
+  const ai = useSymptomInterpretation(segments);
+  const searchKey = JSON.stringify([source, ai.segments, ai.preinterpreted]);
+  const [resultKey, setResultKey] = useState('');
   const workerRef = useRef(null);
   const requestRef = useRef(0);
   const [status, setStatus] = useState("loading");
@@ -15,11 +19,14 @@ export function useRemedySearch(segments, limit = 10) {
   const [error, setError] = useState("");
 
   const stableSegments = useMemo(
-    () => segments.map((segment) => String(segment || "").trim()).filter(Boolean),
-    [JSON.stringify(segments)],
+    () => ai.segments.map((segment) => String(segment || "").trim()).filter(Boolean),
+    [JSON.stringify(ai.segments)],
   );
 
   useEffect(() => {
+    ++requestRef.current;
+    setStatus('loading'); setMetadata(null); setError('');
+    setResults([]); setRecommendation(null); setCombinations([]);
     const worker = new Worker(
       new URL("./remedy-search.worker.js", import.meta.url),
       { type: "module" },
@@ -39,6 +46,7 @@ export function useRemedySearch(segments, limit = 10) {
       }
 
       if (message.type === "results" && message.requestId === requestRef.current) {
+        setResultKey(message.searchKey);
         setResults(message.results);
         setCombinations(message.combinations || []);
         setRecommendation(message.recommendation || null);
@@ -49,7 +57,7 @@ export function useRemedySearch(segments, limit = 10) {
         return;
       }
 
-      if (message.type === "error") {
+      if (message.type === "error" && (!message.requestId || message.requestId === requestRef.current)) {
         setError(message.message);
         setStatus("error");
       }
@@ -57,17 +65,18 @@ export function useRemedySearch(segments, limit = 10) {
 
     worker.postMessage({
       type: "init",
-      indexUrl: "/data/materia-medica-index.json",
+      indexUrl: source === 'combined' ? '/data/combined-remedy-index.json' : '/data/materia-medica-index.json',
     });
 
     return () => {
       worker.terminate();
       workerRef.current = null;
     };
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     if (!workerRef.current || !metadata) return undefined;
+    const requestId = ++requestRef.current;
 
     if (stableSegments.length === 0) {
       setResults([]);
@@ -82,18 +91,20 @@ export function useRemedySearch(segments, limit = 10) {
 
     setStatus("searching");
     const timeout = window.setTimeout(() => {
-      const requestId = requestRef.current + 1;
-      requestRef.current = requestId;
       workerRef.current?.postMessage({
         type: "search",
         requestId,
         segments: stableSegments,
         limit,
+        searchKey,
+        preinterpreted: ai.preinterpreted,
       });
     }, 60);
 
     return () => window.clearTimeout(timeout);
-  }, [metadata, stableSegments, limit]);
+  }, [metadata, stableSegments, limit, searchKey]);
 
-  return { status, results, combinations, recommendation, interpretedSegments, inputInterpretations, metadata, durationMs, error };
+  const current = resultKey === searchKey && stableSegments.length > 0;
+  const displayStatus = ai.status === 'interpreting' ? 'searching' : status === 'loading' || status === 'error' ? status : stableSegments.length && !current ? 'searching' : status;
+  return { status: displayStatus, results: current ? results : [], combinations: current ? combinations : [], recommendation: current ? recommendation : null, interpretedSegments: current ? interpretedSegments : [], inputInterpretations: current ? inputInterpretations : [], metadata, durationMs: current ? durationMs : 0, error, ai };
 }

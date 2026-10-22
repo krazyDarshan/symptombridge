@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useRemedySearch } from "./useRemedySearch";
 import { useClinicalRecords } from "./useClinicalRecords";
+import { SymptomCapture, LanguageControls, InterpretationStatus } from "./SymptomCapture";
 
 const fallbackDatasetMeta = {
   datasetVersion: "1.0.0",
@@ -119,7 +120,7 @@ function Dashboard({ patients, recordsStatus, onAddPatient }) {
   const metadata = useDatasetMeta();
   const [quickSearch, setQuickSearch] = useState("");
   const quickSearchSegments = useMemo(() => quickSearch.trim().length >= 2 ? [quickSearch.trim()] : [], [quickSearch]);
-  const { status: quickSearchStatus, results: quickSearchResults } = useRemedySearch(quickSearchSegments, 6);
+  const { status: quickSearchStatus, results: quickSearchResults, ai: quickAi } = useRemedySearch(quickSearchSegments, 6);
   const openFinder = () => {
     const query = quickSearch.trim();
     if (query.length < 2) return;
@@ -134,7 +135,9 @@ function Dashboard({ patients, recordsStatus, onAddPatient }) {
     <PageHeader eyebrow="Clinical reference workspace" title="From symptoms to source evidence" description="Move from the patient’s words to source-linked remedy candidates in one clear workflow." action={<button className="primary-btn" onClick={() => patients.length ? navigate("/consultation") : onAddPatient()}><Plus size={17} /> New consultation</button>} />
     <section className="search-entry-card">
       <div className="search-entry-copy"><span className="section-kicker"><Stethoscope size={16} /> Begin with the symptom</span><h2>Search the complete Materia Medica source.</h2><p>Results change as you type. Add distinct symptoms one by one to keep remedies that match the whole case at the top.</p></div>
-      <form className="quick-search" onSubmit={beginSearch}><Search size={20} /><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Describe a symptom, modality or location…" aria-label="Quick symptom search" autoComplete="off" aria-controls="overview-remedy-suggestions" aria-expanded={quickSearch.trim().length >= 2} /><button className="primary-btn" type="submit" disabled={quickSearch.trim().length < 2}>Open full finder</button></form>
+      <LanguageControls />
+      <form className="quick-search" onSubmit={beginSearch}><Search size={20} /><input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Describe a symptom, modality or location…" aria-label="Quick symptom search" autoComplete="off" aria-controls="overview-remedy-suggestions" aria-expanded={quickSearch.trim().length >= 2} /><SymptomCapture onAccept={text => setQuickSearch(current => [current.trim(), text].filter(Boolean).join("; "))} /><button className="primary-btn" type="submit" disabled={quickSearch.trim().length < 2}>Open full finder</button></form>
+      <InterpretationStatus ai={quickAi} />
       <LiveRemedySuggestions id="overview-remedy-suggestions" query={quickSearch} status={quickSearchStatus} results={quickSearchResults} onChoose={openFinder} />
     </section>
     <div className="dataset-stats">
@@ -223,9 +226,11 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
           code: remedy.code,
           name: remedy.name,
           scientific: remedy.scientific,
+          evidence: remedy.evidence,
+          datasetVersion: remedy.datasetVersion,
         })),
         rationale: rationale.trim(),
-        datasetVersion: "1.0.0",
+        datasetVersion: selectedRemedies[0]?.datasetVersion || '1.0.0',
       });
       showToast("Consultation saved to the patient record.");
       navigate("/cases");
@@ -243,9 +248,9 @@ function Consultation({ patients, recordsStatus, onAddPatient, onSaveCase, showT
     <PageHeader eyebrow="New consultation" title={patient.name} description="Capture symptoms, compare source-linked remedies, and record the practitioner’s selection." />
     <div className="stepper">{["Patient", "Symptoms", "Remedy review", "Decision"].map((label, index) => <div className={`step ${step === index + 1 ? "current" : step > index + 1 ? "done" : ""}`} key={label}><div className="step-circle">{step > index + 1 ? <Check size={15} /> : index + 1}</div><span>{label}</span></div>)}</div>
     {step === 1 && <section className="panel consultation-panel"><SectionTitle number="01" title="Select the patient" text="The consultation and final remedy selection will remain connected to this record." /><label htmlFor="consultation-patient">Patient</label><select id="consultation-patient" value={patientId} onChange={(event) => setPatientId(event.target.value)}>{patients.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.id}</option>)}</select><div className="selected-patient"><div className="small-avatar">{initials(patient.name)}</div><div><strong>{patient.name}</strong><span>{patient.symptom || "No previous concern recorded"}</span></div><span className="status">{patient.status}</span></div><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
-    {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Enter one confirmed symptom" /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
-    {step === 3 && <div><RemedyFinder key={searchSymptoms.join("|")} initialSymptoms={searchSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={setSelectedRemedies} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedies.length ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong> in the review set</span></> : <span>Review the automatically suggested set and its source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
-    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, retained source-review set, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Review set</span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong></div><div><span>Dataset</span><strong>v1.0.0</strong></div></div><label htmlFor="rationale">Review rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this source-review set was retained after checking the matched symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
+    {step === 2 && <section className="panel consultation-panel"><SectionTitle number="02" title="Capture the patient’s words" text="Keep each distinct symptom separate so the remedy ranking can compare the whole case." /><label htmlFor="patient-description">Patient’s complete description</label><textarea id="patient-description" rows="5" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Record the description in the patient’s own words…" /><LanguageControls /><label htmlFor="symptom-entry">Confirmed symptoms</label><div className="capture-entry"><input id="symptom-entry" value={symptomDraft} onChange={(event) => setSymptomDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCapturedSymptom(); } }} placeholder="Enter one confirmed symptom" /><SymptomCapture onAccept={text => setSymptomDraft(current => [current.trim(), text].filter(Boolean).join("; "))} /><button className="secondary-btn" onClick={addCapturedSymptom} disabled={symptomDraft.trim().length < 2}><Plus size={16} /> Add</button></div><SymptomChips symptoms={symptoms} onRemove={(value) => setSymptoms((items) => items.filter((item) => item !== value))} emptyText="Add symptoms individually; press Enter after each one." /><FormActions step={step} onBack={() => setStep(step - 1)} onNext={continueFlow} /></section>}
+    {step === 3 && <div><RemedyFinder initialSymptoms={searchSymptoms} onSymptomsChange={setSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={setSelectedRemedies} onEvidence={setEvidence} compact /><div className="consultation-footer panel"><button className="secondary-btn" onClick={() => setStep(2)}>Back</button><div className="consultation-selection">{selectedRemedies.length ? <><CheckCircle2 size={18} /><span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong> in the review set</span></> : <span>Review the automatically suggested set and its source wording.</span>}</div><button className="primary-btn" onClick={continueFlow}>Continue to decision <ChevronRight size={16} /></button></div></div>}
+    {step === 4 && <section className="panel consultation-panel"><SectionTitle number="04" title="Record the practitioner’s decision" text="The saved record includes the symptoms, retained source-review set, dataset version and rationale." /><div className="decision-summary"><div><span>Patient</span><strong>{patient.name}</strong></div><div><span>Symptoms reviewed</span><strong>{searchSymptoms.length}</strong></div><div><span>Review set</span><strong>{selectedRemedies.map((remedy) => remedy.name).join(" + ")}</strong></div><div><span>Dataset</span><strong>{selectedRemedies[0]?.datasetVersion || '1.0.0'}</strong></div></div><label htmlFor="rationale">Review rationale</label><textarea id="rationale" rows="5" value={rationale} onChange={(event) => setRationale(event.target.value)} placeholder="Record why this source-review set was retained after checking the matched symptoms…" /><div className="form-actions"><button className="secondary-btn" onClick={() => setStep(3)} disabled={saving}>Back</button><button className="primary-btn" onClick={completeConsultation} disabled={saving}><CheckCircle2 size={16} /> {saving ? "Saving…" : "Complete consultation"}</button></div></section>}
   </div>;
 }
 
@@ -267,18 +272,19 @@ function SearchPage({ setEvidence, showToast }) {
   return <div><PageHeader eyebrow="Materia Medica" title="Remedy finder" description="Type naturally, add distinct symptoms, and let the source engine build the smallest review set that covers the case." /><RemedyFinder initialSymptoms={initialSymptoms} selectedRemedies={selectedRemedies} onSelectionChange={updateSelection} onEvidence={setEvidence} /></div>;
 }
 
-function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelectionChange, onEvidence, compact = false }) {
+function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelectionChange, onEvidence, compact = false, onSymptomsChange }) {
+  const [source, setSource] = useState('original');
   const [confirmedSymptoms, setConfirmedSymptoms] = useState(() => initialSymptoms.filter(Boolean));
   const [draft, setDraft] = useState("");
   const lastAutomaticSignature = useRef("");
   const activeSegments = useMemo(() => [...confirmedSymptoms, ...(draft.trim().length >= 2 ? [draft.trim()] : [])], [confirmedSymptoms, draft]);
-  const { status, results, combinations, recommendation, interpretedSegments, inputInterpretations, metadata, durationMs, error } = useRemedySearch(activeSegments, 14);
-  const effectiveSegments = interpretedSegments.length ? interpretedSegments : activeSegments;
+  const { status, results, combinations, recommendation, interpretedSegments, inputInterpretations, metadata, durationMs, error, ai } = useRemedySearch(activeSegments, 14, source);
+  const effectiveSegments = interpretedSegments.length ? interpretedSegments : ai.segments;
   const recommendationSignature = recommendation ? `${effectiveSegments.join("|")}::${recommendation.mode}::${recommendation.remedyIds.join("|")}` : "";
   const corrections = inputInterpretations.flatMap((interpretation) => interpretation.corrections || []);
   const hasExpandedInterpretation = corrections.length > 0 || inputInterpretations.some((interpretation) => interpretation.concepts?.length > 1);
   useEffect(() => {
-    if (!activeSegments.length) {
+    if (!activeSegments.length || status !== "ready" || !recommendation) {
       lastAutomaticSignature.current = "";
       if (selectedRemedies.length) onSelectionChange([], { automatic: true });
       return;
@@ -295,6 +301,7 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
     setConfirmedSymptoms((items) => [...items, value]); setDraft("");
   };
   const removeSymptom = (value) => setConfirmedSymptoms((items) => items.filter((item) => item !== value));
+  useEffect(() => { onSymptomsChange?.(activeSegments); }, [activeSegments, onSymptomsChange]);
   const toggleRemedy = (remedy) => {
     const alreadySelected = selectedRemedies.some((item) => item.id === remedy.id);
     const next = alreadySelected
@@ -306,9 +313,13 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
   return <section className={`finder-shell ${compact ? "compact" : ""}`}>
     <div className="finder-main">
       <div className="finder-input-panel">
+        <label>Reference sources <select aria-label="Reference sources" value={source} onChange={e => { setSource(e.target.value); lastAutomaticSignature.current = ''; onSelectionChange([], { automatic: true }); }}><option value="original">Materia Medica Pura — original baseline</option><option value="combined">Both books — expanded dataset preview</option></select></label>
+        {source === 'combined' && <p className="finder-help">Chronic Diseases extraction is available for source review. Practitioner audit is pending; original spelling is preserved and no emphasis priority is inferred.</p>}
+        <LanguageControls />
         <div className="finder-label-row"><label htmlFor={`remedy-query-${compact ? "consultation" : "standalone"}`}>Describe one symptom</label><span>{status === "loading" ? "Loading source…" : metadata ? `${metadata.symptomCount.toLocaleString()} source symptoms ready` : "Source unavailable"}</span></div>
-        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" aria-controls={`finder-remedy-suggestions-${compact ? "consultation" : "standalone"}`} aria-expanded={draft.trim().length >= 2} />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
-        <p className="finder-help">Results update while you type. Press Enter to confirm this symptom, then enter the next one.</p>
+        <div className="finder-input"><Search size={20} /><input id={`remedy-query-${compact ? "consultation" : "standalone"}`} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addSymptom(); } }} placeholder="Type the patient’s symptom, location or modality…" autoComplete="off" aria-controls={`finder-remedy-suggestions-${compact ? "consultation" : "standalone"}`} aria-expanded={draft.trim().length >= 2} />{draft && <button className="clear-input" onClick={() => setDraft("")} aria-label="Clear symptom"><X size={17} /></button>}<SymptomCapture onAccept={text => setDraft(current => [current.trim(), text].filter(Boolean).join("; "))} /><button className="primary-btn add-symptom-btn" onClick={addSymptom} disabled={draft.trim().length < 2}><Plus size={16} /> Add symptom</button></div>
+        <p className="finder-help">Type in English, हिंदी or मराठी, or tap the mic, speak and tap stop. Results update automatically; check the transcript before choosing a remedy.</p>
+        <InterpretationStatus ai={ai} />
         <LiveRemedySuggestions id={`finder-remedy-suggestions-${compact ? "consultation" : "standalone"}`} query={draft} status={status} results={results} selectedRemedies={selectedRemedies} onChoose={toggleRemedy} />
         {hasExpandedInterpretation && <div className="query-interpretation"><Info size={15} /><div><strong>Interpreted clinical concepts</strong><div>{effectiveSegments.map((segment, index) => <span key={`${segment}-${index}`}>{segment}</span>)}</div>{corrections.length > 0 && <p>{corrections.map((correction) => `“${correction.from}” → “${correction.to}”`).join(" · ")}</p>}</div></div>}
         <SymptomChips symptoms={confirmedSymptoms} onRemove={removeSymptom} />
@@ -317,7 +328,7 @@ function RemedyFinder({ initialSymptoms = [], selectedRemedies = [], onSelection
       {error && <div className="error-state"><Info size={18} /><span>{error}</span></div>}
       {!activeSegments.length && <div className="starter-state"><div className="starter-icon"><BookOpen size={24} /></div><h3>Search by the patient’s actual description</h3><p>Begin typing above. Remedies will appear only when the source dataset contains a match.</p></div>}
       {activeSegments.length > 0 && status === "loading" && <ResultSkeleton />}
-      {activeSegments.length > 0 && status !== "loading" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
+      {activeSegments.length > 0 && status === "ready" && !ai.error && ai.status !== "disabled" && results.length === 0 && <div className="starter-state"><CircleHelp size={24} /><h3>No clear source match yet</h3><p>Use fewer words, check the wording, or add the symptom as a separate entry.</p></div>}
       {recommendation && status !== "loading" && <AutomaticReviewSet recommendation={recommendation} results={results} segments={effectiveSegments} selectedRemedies={selectedRemedies} onEvidence={onEvidence} />}
       <div className="remedy-results">{results.map((remedy, index) => <RemedyResult key={remedy.id} rank={index + 1} remedy={remedy} selected={selectedRemedies.some((item) => item.id === remedy.id)} querySegments={effectiveSegments} onSelect={() => toggleRemedy(remedy)} onEvidence={() => onEvidence({ ...remedy, querySegments: effectiveSegments })} />)}</div>
       {effectiveSegments.length > 1 && status !== "loading" && <CoverageGroups combinations={combinations} segments={effectiveSegments} results={results} onEvidence={onEvidence} />}
@@ -397,7 +408,7 @@ function RemedyResult({ rank, remedy, selected, querySegments, onSelect, onEvide
       <div className="result-title-row"><div><h3>{remedy.name}</h3><p>{remedy.scientific} · {remedy.code}</p></div><div className="result-badges"><span className="alignment-score">{remedy.alignmentPercent}% source alignment</span><span className="match-label">{remedy.label}</span><PriorityBadge priority={remedy.highestPriority} /></div></div>
       <div className="coverage-row"><div className="coverage-track"><span style={{ width: `${Math.round((remedy.matchedSegmentCount / remedy.totalSegmentCount) * 100)}%` }} /></div><strong>{remedy.matchedSegmentCount} of {remedy.totalSegmentCount} symptoms supported</strong></div>
       <div className="segment-match-grid">{remedy.segmentMatches.map((match, index) => <div className={match.matched ? "matched" : "unmatched"} key={`${match.segment}-${index}`}>{match.matched ? <Check size={13} /> : <X size={13} />}<span>{index + 1}. {match.segment}</span>{match.matched && <b>{Math.round(match.score * 100)}%</b>}</div>)}</div>
-      {primaryEvidence && <div className="source-preview"><div className="source-preview-head"><span>Best matching source symptom</span><button onClick={onEvidence}>Page {primaryEvidence.page} · View evidence</button></div><p><HighlightedText text={primaryEvidence.text} segments={querySegments} /></p></div>}
+      {primaryEvidence && <div className="source-preview"><div className="source-preview-head"><span>{primaryEvidence.sourceTitle || 'Materia Medica Pura'}</span><button onClick={onEvidence}>PDF page {primaryEvidence.page} · View evidence</button></div><p><HighlightedText text={primaryEvidence.text} segments={querySegments} /></p></div>}
     </div>
     <div className="result-action"><button className={selected ? "selected-btn" : "secondary-btn"} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> In review set</> : "Add to review set"}</button><button className="text-btn" onClick={onEvidence}><BookOpen size={15} /> Source details</button></div>
   </article>;
@@ -436,7 +447,8 @@ function EvidenceModal({ remedy, onClose }) {
   return <div className="modal-backdrop" onClick={onClose}><div className="modal evidence-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label={`Source evidence for ${remedy.name}`}>
     <div className="modal-head"><div><span className="eyebrow">Source evidence</span><h2>{remedy.name}</h2><p>{remedy.scientific} · {remedy.code}</p></div><button className="icon-btn" onClick={onClose} aria-label="Close evidence"><X size={19} /></button></div>
     <div className="modal-coverage"><strong>{remedy.matchedSegmentCount} of {remedy.totalSegmentCount}</strong><span>entered symptoms have supporting source matches</span></div>
-    <div className="evidence-list">{remedy.evidence.map((evidence) => <article key={`${evidence.id}-${evidence.segmentIndex}`}><div className="evidence-row-head"><span>For “{evidence.segment}”</span><div><span className="evidence-score">{Math.round(evidence.matchScore * 100)}% text alignment</span><PriorityBadge priority={evidence.priority} /><b>Page {evidence.page}</b></div></div><p><HighlightedText text={evidence.text} segments={remedy.querySegments || [evidence.segment]} /></p>{evidence.emphasizedText && <div className="bold-source"><strong>Bold in source</strong><span>{evidence.emphasizedText.replaceAll("|", " ")}</span></div>}</article>)}</div>
+    <p>{[...new Set(remedy.evidence.map(e => `${e.sourceTitle || 'Materia Medica Pura'}: PDF ${e.page}${e.pageEnd > e.page ? `–${e.pageEnd}` : ''}`))].join(' · ')}</p>
+    <div className="evidence-list">{remedy.evidence.map((evidence) => <article key={`${evidence.id}-${evidence.segmentIndex}`}><div className="evidence-row-head"><span>For “{evidence.segment}”</span><div><span className="evidence-score">{Math.round(evidence.matchScore * 100)}% text alignment</span><PriorityBadge priority={evidence.priority} /><b>{evidence.sourceTitle || 'Materia Medica Pura'} · PDF {evidence.page}{evidence.pageEnd > evidence.page ? `–${evidence.pageEnd}` : ''}</b></div></div><p><HighlightedText text={evidence.text} segments={remedy.querySegments || [evidence.segment]} /></p>{evidence.emphasizedText && <div className="bold-source"><strong>Bold in source</strong><span>{evidence.emphasizedText.replaceAll("|", " ")}</span></div>}</article>)}</div>
     <div className="evidence-disclaimer"><ShieldCheck size={17} /><span>Source emphasis is a retrieval signal only. It is not diagnostic certainty or a treatment recommendation.</span></div>
     <div className="modal-actions"><button className="secondary-btn" onClick={onClose}>Close</button></div>
   </div></div>;

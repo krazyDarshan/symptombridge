@@ -8,6 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "test:search": "node scripts/test-search-engine.mjs",
+    "test:expansion": "node scripts/test-expansion.mjs",
+    "test:ai": "node --test scripts/test-ai-input.mjs",
+    "data:combine": "python scripts/build_combined_index.py",
     "preview": "vite preview"
   },
   "dependencies": {

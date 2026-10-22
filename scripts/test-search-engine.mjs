@@ -5,6 +5,12 @@ import { createRemedySearchEngine } from "../src/remedy-search-core.js";
 const dataset = JSON.parse(await readFile(new URL("../public/data/materia-medica-index.json", import.meta.url), "utf8"));
 const engine = createRemedySearchEngine(dataset);
 
+const aiConcept = 'dry cough worse at night';
+const aiSearch = engine.search([aiConcept], 14, { preinterpreted: true });
+assert.deepEqual(aiSearch.interpretedSegments, [aiConcept]);
+assert.deepEqual(aiSearch.inputInterpretations[0].corrections, []);
+assert.ok(aiSearch.results.length > 0);
+
 const reportedQuery = engine.search(["cough itching throat swealling"], 14);
 assert.deepEqual(reportedQuery.interpretedSegments, ["cough throat", "itching throat", "throat swelling"]);
 assert.equal(reportedQuery.inputInterpretations[0].corrections[0]?.to, "swelling");

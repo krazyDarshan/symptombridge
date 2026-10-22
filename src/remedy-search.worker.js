@@ -30,10 +30,11 @@ self.onmessage = async (event) => {
     if (message.type === "search") {
       await loadPromise;
       const startedAt = performance.now();
-      const searchResult = engine.search(message.segments || [], message.limit || 14);
+      const searchResult = engine.search(message.segments || [], message.limit || 14, { preinterpreted: message.preinterpreted });
       self.postMessage({
         type: "results",
         requestId: message.requestId,
+        searchKey: message.searchKey,
         ...searchResult,
         durationMs: Math.round(performance.now() - startedAt),
       });

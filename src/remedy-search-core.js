@@ -338,6 +338,9 @@ function scoreSourceSymptom(symptom, query, segmentIndex) {
       emphasizedText: symptom.emphasizedText,
       priority: symptom.priority,
       page: symptom.page,
+      pageEnd: symptom.pageEnd,
+      sourceId: symptom.sourceId,
+      sourceTitle: symptom.sourceTitle,
       segment: query.original,
       segmentIndex,
       matchScore: score,
@@ -563,14 +566,16 @@ export function createRemedySearchEngine(payload) {
     name: preparation.name,
     scientific: preparation.scientific,
     aliases: preparation.aliases || [],
+    datasetVersion: payload.datasetVersion || '1.0.0',
   }));
   const symptoms = [];
   const documentFrequency = new Map();
   const wordFrequency = new Map();
 
+  const uniqueDocuments = new Set();
   payload.preparations.forEach((preparation, remedyIndex) => {
     preparation.symptoms.forEach((row) => {
-      const [id, number, text, emphasizedText, priority, page] = row;
+      const [id, number, text, emphasizedText, priority, page, sourceId = 'materia-medica-pura', pageEnd = page] = row;
       const tokens = tokenize(text, true);
       const tokenSet = new Set(tokens);
       const stemSet = new Set(tokens.map(stem));
@@ -583,6 +588,9 @@ export function createRemedySearchEngine(payload) {
         emphasizedText,
         priority,
         page,
+        pageEnd,
+        sourceId,
+        sourceTitle: payload.sources?.[sourceId]?.title || 'Materia Medica Pura',
         normalized: normalize(text),
         tokens,
         tokenSet,
@@ -597,8 +605,12 @@ export function createRemedySearchEngine(payload) {
         },
       };
       symptoms.push(symptom);
-      for (const tokenStem of stemSet) documentFrequency.set(tokenStem, (documentFrequency.get(tokenStem) || 0) + 1);
-      for (const token of tokenSet) wordFrequency.set(token, (wordFrequency.get(token) || 0) + 1);
+      const documentKey = `${remedyIndex}:${normalize(text)}`;
+      if (!uniqueDocuments.has(documentKey)) {
+        uniqueDocuments.add(documentKey);
+        for (const tokenStem of stemSet) documentFrequency.set(tokenStem, (documentFrequency.get(tokenStem) || 0) + 1);
+        for (const token of tokenSet) wordFrequency.set(token, (wordFrequency.get(token) || 0) + 1);
+      }
     });
   });
 
@@ -613,12 +625,14 @@ export function createRemedySearchEngine(payload) {
     correctionIndex.set(key, [...(correctionIndex.get(key) || []), token]);
   }
 
-  function search(segments, limit = 14) {
-    const inputInterpretations = segments.map((segment) => interpretSegment(segment, wordFrequency, correctionIndex));
+  function search(segments, limit = 14, { preinterpreted = false } = {}) {
+    const inputInterpretations = segments.map((segment) => preinterpreted
+      ? { original: segment, concepts: [segment], corrections: [] }
+      : interpretSegment(segment, wordFrequency, correctionIndex));
     const seenQueries = new Set();
     const queries = inputInterpretations
       .flatMap((interpretation) => interpretation.concepts)
-      .map((segment) => buildQuery(segment, documentFrequency, symptoms.length))
+      .map((segment) => buildQuery(segment, documentFrequency, uniqueDocuments.size))
       .filter((query) => {
         if (!query.tokens.length || seenQueries.has(query.normalized)) return false;
         seenQueries.add(query.normalized);

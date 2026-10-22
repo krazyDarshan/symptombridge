@@ -25,6 +25,22 @@
   --shadow-small: 4px 5px 0 rgba(84, 67, 98, 0.09);
 }
 
+.language-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 12px 0; }
+.language-controls select { width: auto; max-width: 100%; padding: 7px 10px; background: var(--paper); border: 1px solid var(--line-soft); border-radius: 8px; color: var(--ink); }
+.mic-control { position: relative; display: inline-flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.mic-button { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line); color: var(--copper-dark); background: var(--paper-soft); }
+.mic-button:hover { background: var(--camel-soft); }
+.mic-button.is-recording { color: white; background: var(--copper-dark); outline: 3px solid var(--camel-soft); }
+.mic-cancel { border: 0; background: transparent; color: var(--ink); padding: 5px; }
+.mic-error { position: absolute; z-index: 60; top: 48px; right: 0; width: min(320px, 80vw); display: flex; gap: 8px; padding: 12px; background: var(--paper); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-small); font-size: 13px; line-height: 1.5; }
+.mic-error button { align-self: start; border: 0; background: transparent; }
+.ai-interpretation { display: grid; gap: 5px; color: var(--ink-soft); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; margin: 8px 0; }
+.ai-interpretation:empty { display: none; }
+.ai-interpretation small { color: var(--muted); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.mic-spinner { animation: mic-spin 1s linear infinite; }
+@keyframes mic-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mic-spinner { animation: none; } }
 * { box-sizing: border-box; }
 html { background: var(--canvas); }
 body {
@@ -827,3 +843,10 @@ mark { background: #f0d98d; }
   .remedy-typeahead-list > button { grid-template-columns: 24px minmax(0, 1fr) 14px; }
   .remedy-typeahead-score { display: none; }
 }
+.symptom-capture { margin-bottom: 1rem; }
+.capture-fields { display: grid; gap: .85rem; padding: 1rem; margin-top: .75rem; border: 1px solid #cfc4da; border-radius: 14px; background: #faf7ef; color: #342f38; }
+.capture-fields label { display: grid; gap: .4rem; }
+.capture-fields p { margin: 0; line-height: 1.5; font-size: .88rem; }
+.capture-fields textarea { width: 100%; min-height: 90px; padding: .75rem; border: 1px solid #cfc4da; border-radius: 8px; font: inherit; resize: vertical; }
+.capture-fields .capture-check { display: flex; align-items: flex-start; gap: .6rem; font-size: .88rem; }
+.capture-check input { width: auto; flex: 0 0 auto; margin-top: .2rem; }
