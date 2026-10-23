@@ -2,7 +2,7 @@
 
 Set GROQ_API_KEY privately in .env.local using .env.example as a template. Never prefix secrets with VITE_. Existing Groq keys under the old XAI_API_KEY name work for compatibility; xAI credentials are not accepted.
 
-Run npm install and npm run dev. Enable AI languages after reading the consent prompt. Type English, Hindi, Marathi or mixed-language descriptions, or press the microphone, speak, and press Stop. Review the transcript and interpretation. Microphone permission and HTTPS (or localhost) are required. Recordings stop after 60 seconds and are limited to 4 MB.
+Run npm install and npm run dev. Enable AI languages after reading the consent prompt. Type English, Hindi, Marathi or mixed-language descriptions, or press the microphone and speak. A 2.5-second pause after detected speech automatically stops recording, transcribes it and updates live search in Overview and Remedy Finder. Manual Stop remains available. No detected speech within 12 seconds cancels without uploading. Review the transcript and interpretation. Microphone permission and HTTPS (or localhost) are required. Recordings stop after 60 seconds and are limited to 4 MB. Background noise may delay stopping; quiet speech may not cross the sound threshold. This is an energy detector, not a semantic end-of-sentence detector. Consultation capture retains its separate Add/Continue workflow.
 
 ## How it works
 
@@ -28,7 +28,7 @@ Patient records remain in each browser's IndexedDB and are not shared across dev
 
 ## Verification
 
-Run npm run test:ai, npm run test:search, npm run test:expansion, and npm run build.
+Run node --test scripts/test-speech-pause.mjs, npm run test:ai, npm run test:search, npm run test:expansion, and npm run build.
 
 Live synthetic English, Hindi and Marathi text tests returned valid interpretations with denied fever excluded. Automated tests cover audio transport, Marathi hints, invalid input, cross-site checks, team-code protection and provider failures. Actual microphone recordings, accents and clinical accuracy still require human testing. Source-match scores are not clinical accuracy.
 

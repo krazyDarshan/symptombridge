@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Mic, Square, LoaderCircle, X } from 'lucide-react';
 import { aiRequest, requestAiConsent, setInputSettings, setTeamAccessCode, useInputSettings } from './ai-input';
+import { watchSpeechPause } from './speech-pause';
 
 export function LanguageControls() {
   const { language, consent } = useInputSettings();
@@ -27,18 +28,23 @@ export function InterpretationStatus({ ai }) {
   </div>;
 }
 
-// Records locally, then transcribes once on Stop. No browser speech-recognition dependency.
+// Records locally, then transcribes after a pause (or manual Stop).
 export function SymptomCapture({ onAccept }) {
   const { language, consent } = useInputSettings();
   const [phase, setPhase] = useState('idle');
   const [error, setError] = useState('');
   const session = useRef(null);
   const accept = useRef(onAccept); accept.current = onAccept;
+  const releaseMonitor = current => {
+    current.stopMonitor?.(); current.stopMonitor = null;
+    if (current.audioContext && current.audioContext.state !== 'closed') current.audioContext.close().catch(() => {});
+  };
   const cancel = () => {
     const current = session.current;
     session.current = null;
     if (!current) return;
     clearTimeout(current.timer); current.controller.abort();
+    releaseMonitor(current);
     if (current.recorder?.state === 'recording') { current.recorder.onstop = null; current.recorder.stop(); }
     current.stream?.getTracks().forEach(track => track.stop());
   };
@@ -48,6 +54,7 @@ export function SymptomCapture({ onAccept }) {
     const current = session.current;
     if (!current?.recorder || current.recorder.state !== 'recording') return;
     clearTimeout(current.timer); setPhase('transcribing'); current.recorder.stop();
+    releaseMonitor(current);
     current.stream.getTracks().forEach(track => track.stop());
   };
   const start = async () => {
@@ -59,6 +66,12 @@ export function SymptomCapture({ onAccept }) {
     if (!mimeType) { setError('This browser cannot record a supported format. Try Chrome or Edge, or type symptoms.'); return; }
     const current = { controller: new AbortController(), language }; session.current = current; setPhase('starting');
     try {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) throw new Error('Automatic pause detection requires Web Audio. Try Chrome or Edge.');
+      current.audioContext = new AudioContextClass();
+      await current.audioContext.resume();
+      if (session.current !== current) return;
+      if (current.audioContext.state !== 'running') throw new Error('Audio monitoring could not start. Tap the microphone again or try Chrome/Edge.');
       const status = await aiRequest('status', { signal: current.controller.signal });
       if (session.current !== current) return;
       if (status.configurationError) throw new Error(status.configurationError);
@@ -71,6 +84,7 @@ export function SymptomCapture({ onAccept }) {
       recorder.ondataavailable = event => { if (event.data.size) { size += event.data.size; chunks.push(event.data); if (size > 4 * 1024 * 1024) { cancel(); setPhase('idle'); setError('Recording is too large. Try a shorter description.'); } } };
       recorder.onerror = () => { cancel(); setPhase('idle'); setError('Recording failed. Check microphone access and retry.'); };
       recorder.onstop = async () => {
+        releaseMonitor(current);
         clearTimeout(current.timer); stream.getTracks().forEach(track => track.stop());
         if (session.current !== current) return;
         setPhase('transcribing');
@@ -83,6 +97,11 @@ export function SymptomCapture({ onAccept }) {
         finally { if (session.current === current) { session.current = null; setPhase('idle'); } }
       };
       recorder.start(1000); setPhase('recording'); current.timer = setTimeout(stop, 60000);
+      current.stopMonitor = watchSpeechPause(current.audioContext, stream, result => {
+        if (session.current !== current) return;
+        if (result === 'pause') stop();
+        else { cancel(); setPhase('idle'); setError('No speech detected. Tap the mic and speak closer to it.'); }
+      });
     } catch (err) {
       if (session.current !== current) return;
       cancel(); setPhase('idle');
@@ -91,11 +110,12 @@ export function SymptomCapture({ onAccept }) {
   };
   const label = phase === 'recording' ? 'Stop recording and search' : phase === 'transcribing' ? 'Transcribing…' : phase === 'starting' ? 'Opening microphone…' : 'Speak symptoms';
   return <span className="mic-control">
-    <button type="button" className={'mic-button ' + (phase === 'recording' ? 'is-recording' : '')} aria-label={label} title={phase === 'recording' ? 'Listening · click to stop (60-second limit)' : label} aria-pressed={phase === 'recording'} disabled={['starting', 'transcribing'].includes(phase)} onClick={phase === 'recording' ? stop : start}>
+    <button type="button" className={'mic-button ' + (phase === 'recording' ? 'is-recording' : '')} aria-label={label} title={phase === 'recording' ? 'Listening · stops after a 2.5-second pause (60-second limit)' : label} aria-pressed={phase === 'recording'} disabled={['starting', 'transcribing'].includes(phase)} onClick={phase === 'recording' ? stop : start}>
       {phase === 'recording' ? <Square size={18} /> : ['starting', 'transcribing'].includes(phase) ? <LoaderCircle size={19} className="mic-spinner" /> : <Mic size={20} />}
     </button>
     {phase !== 'idle' && <button type="button" className="mic-cancel" aria-label="Cancel recording or transcription" onClick={() => { cancel(); setPhase('idle'); }}><X size={14} /></button>}
     <span className="sr-only" role="status">{phase !== 'idle' ? label : ''}</span>
+    {phase === 'recording' && <small role="status">Listening… pause for 2.5 seconds to search.</small>}
     {error && <span className="mic-error" role="alert">{error}<button type="button" aria-label="Dismiss microphone error" onClick={() => setError('')}><X size={14} /></button></span>}
   </span>;
 }
