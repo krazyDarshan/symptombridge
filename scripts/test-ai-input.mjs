@@ -19,6 +19,16 @@ const interpretation = { symptoms: [
 ], clarification: 'सूज आहे का?' };
 const original = 'खोकला, ताप नाही, कदाचित सूज';
 
+test('unsupported dry cough qualifier is removed and clarification shown', () => {
+  const evidence = 'घस्यात खाँसी';
+  const result = validateInterpretation({ symptoms: [{ original: evidence, english: 'dry cough', status: 'present' }], clarification: '' }, evidence);
+  assert.equal(result.symptoms[0].english, 'cough');
+  assert.match(result.clarification, /confirm/);
+  for (const wording of ['dry cough', 'कोरडा खोकला', 'सूखी खांसी']) {
+    assert.equal(validateInterpretation({ symptoms: [{ original: wording, english: 'dry cough', status: 'present' }], clarification: '' }, wording).symptoms[0].english, 'dry cough');
+  }
+});
+
 test('xAI credentials are never forwarded to Groq', async () => {
   await serve({ env: { GROQ_API_KEY: 'xai_fake_test_only' }, fetchImpl: async () => { assert.fail('Wrong-provider key must not be transmitted'); } }, async base => {
     const status = await (await fetch(`${base}/api/ai/status`)).json();

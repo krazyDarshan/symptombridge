@@ -33,7 +33,18 @@ export function validateInterpretation(value, original) {
   for (const item of value.symptoms) {
     if (!item || !['present', 'absent', 'uncertain'].includes(item.status) || typeof item.original !== 'string' || !item.original.trim() || !original.includes(item.original) || typeof item.english !== 'string' || !item.english.trim() || item.english.length > 600 || /[\u0900-\u097f]/u.test(item.english)) throw new ApiError(502, 'The language service could not safely interpret this wording. Please rephrase.');
   }
-  return { symptoms: value.symptoms.map(({ original, english, status }) => ({ original, english: english.trim(), status })), clarification: value.clarification };
+  // Guard a reproduced hallucination independently of prompt compliance. This is
+  // a specificity check, not a replacement for multilingual LLM interpretation.
+  let reducedSpecificity = false;
+  const symptoms = value.symptoms.map(({ original: evidence, english, status }) => {
+    let concept = english.trim();
+    if (/\bdry\s+cough\b/i.test(concept) && !/(\bdry\b|सूख|सुखी|कोरड|sookh|sukh|korad|kor d)/iu.test(evidence)) {
+      concept = concept.replace(/\bdry\s+(?=cough\b)/gi, '');
+      reducedSpecificity = true;
+    }
+    return { original: evidence, english: concept, status };
+  });
+  return { symptoms, clarification: reducedSpecificity ? [value.clarification, 'Cough type was unclear; searched as cough only. Please confirm whether it is dry or productive.'].filter(Boolean).join(' ') : value.clarification };
 }
 async function readBody(req, limit) {
   const chunks = []; let size = 0;
