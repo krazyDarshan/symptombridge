@@ -33,3 +33,9 @@ Run node --test scripts/test-speech-pause.mjs, npm run test:ai, npm run test:sea
 Live synthetic English, Hindi and Marathi text tests returned valid interpretations with denied fever excluded. Automated tests cover audio transport, Marathi hints, invalid input, cross-site checks, team-code protection and provider failures. Actual microphone recordings, accents and clinical accuracy still require human testing. Source-match scores are not clinical accuracy.
 
 References: https://console.groq.com/docs/structured-outputs and https://console.groq.com/docs/speech-to-text
+
+## Recorded-audio integration check (27 October 2026)
+
+Three user-supplied M4A recordings (English, Hindi, Marathi/mixed speech) were submitted to the production transcription endpoint. All returned HTTP 200, preserved cough and throat symptoms, excluded fever, and produced dataset matches. The Marathi transcript had spelling differences; review remains necessary.
+
+The opt-in React integration test can be run with `npx tsx scripts/test-recorded-voice.jsx <english.m4a> <hindi.m4a> <marathi.m4a>`. It sends the supplied files to Groq using local server credentials. It uses the real capture component, pause detector, interpretation/search hooks, server and dataset engine, but simulates MediaRecorder, the microphone energy sequence and Worker transport. It asserts results render without pressing Stop or Add, one transcription occurs, audio resources are released, fever stays absent and dry cough is not invented. All three recordings passed. This is not a real-browser or physical-microphone test. Recordings and credentials are not included in the repository.
